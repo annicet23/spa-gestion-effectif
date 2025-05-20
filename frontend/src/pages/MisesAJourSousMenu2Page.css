@@ -1,0 +1,29 @@
+src/pages/MisesAJourSousMenu1Page.css 
+
+@media (max-width: 767.98px) {
+    .col-md-6:last-child {
+        margin-top: 1.5rem;
+    }
+}
+
+.container > .row > .col-md-6 {
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 0.5rem;
+}
+*
+.alert-custom {
+    margin-top: 1rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.25rem;
+}
+.alert-custom.success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+.alert-custom.danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}

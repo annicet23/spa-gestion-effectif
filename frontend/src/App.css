@@ -1,0 +1,390 @@
+/* src/App.css */
+
+/* Styles généraux pour assurer que l'application prend toute la hauteur et la largeur */
+html, body, #root, .App {
+  height: 100%; /* Assure que ces éléments prennent 100% de la hauteur de leur parent */
+  width: 100%; /* Assure que ces éléments prennent 100% de la largeur de leur parent */
+  margin: 0; /* Supprime les marges par défaut du body */
+  padding: 0; /* Supprime les paddings par défaut */
+  position: relative; /* Utile si vous avez des éléments positionnés absolument à l'intérieur */
+  overflow-x: hidden; /* Empêche le défilement horizontal non désiré */
+  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
+  color: #212529; /* Couleur de texte par défaut pour Bootstrap (noir) */
+}
+
+/* --- Styles pour le conteneur de la page de connexion --- */
+.login-page-container {
+  background-color: #ffffff; /* Le fond principal est blanc */
+  z-index: 1; /* Assure que le contenu est au-dessus de la vague */
+  min-height: 100vh; /* Assure que le conteneur prend au moins toute la hauteur de la vue */
+  height: 100%; /* Force la hauteur à 100% du parent disponible */
+  width: 100%; /* Force la largeur à 100% du parent disponible */
+  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
+  display: flex; /* Active Flexbox */
+  justify-content: center; /* Centre les éléments enfants (le formulaire) horizontalement */
+  align-items: center; /* Centre les éléments enfants (le formulaire) verticalement */
+  position: relative; /* Position relative pour le pseudo-élément */
+  overflow: hidden; /* Cache le débordement du pseudo-élément si nécessaire */
+}
+
+/* Pseudo-élément pour la vague bleue en diagonale */
+.login-page-container::before {
+  content: ''; /* Nécessaire pour les pseudo-éléments */
+  position: absolute; /* Positionnement absolu par rapport au conteneur parent */
+  /* Ajustez top et right pour positionner le point de départ de la vague */
+  top: -80vh; /* Commence bien au-dessus du haut de la page */
+  right: -80vw; /* Commence bien à droite du côté droit de la page */
+  /* Ajustez width et height pour contrôler la taille de la vague */
+  width: 200vw;
+  height: 200vh;
+  background-color: #007bff; /* Couleur bleue de Bootstrap */
+  border-bottom-left-radius: 100% 150vh; /* Rayon horizontal 100%, rayon vertical ajusté */
+  z-index: 0; /* Ajustez le z-index pour qu'il soit en dessous du contenu (le formulaire) */
+}
+
+/* --- Styles pour la carte du formulaire de connexion --- */
+.login-card {
+  border-radius: 10px; /* Coins arrondis */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Ombre légère */
+  width: 100%; /* Prend 100% de la largeur disponible... */
+  max-width: 400px; /* ...mais pas plus de 400px */
+  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
+  position: relative; /* Position relative et z-index élevé pour s'assurer qu'il est au-dessus de la vague */
+  z-index: 2; /* Plus élevé que le pseudo-élément */
+  background-color: rgba(255, 255, 255, 0.8); /* Fond blanc légèrement transparent */
+  transition: transform 0.3s ease-in-out; /* Anime la propriété transform sur 0.3s */
+}
+
+/* Effet d'agrandissement au survol de la carte */
+.login-card:hover {
+  transform: scale(1.05); /* Agrandit la carte de 5% */
+}
+
+/* --- Styles pour le cercle de l'icône utilisateur --- */
+.user-icon-circle {
+  width: 80px; /* Taille du cercle */
+  height: 80px; /* Taille du cercle */
+  border-radius: 50%; /* Rendre l'élément circulaire */
+  display: flex; /* Utilisation de flexbox pour centrer l'icône à l'intérieur du cercle */
+  justify-content: center;
+  align-items: center;
+}
+
+/* --- Styles pour le bouton principal de la carte de connexion --- */
+.login-card .btn-primary {
+  position: relative; /* Nécessaire pour positionner le pseudo-élément */
+  overflow: hidden; /* Cache le pseudo-élément lorsqu'il est en dehors des bords */
+  z-index: 1; /* Assure que le contenu du bouton est au-dessus du pseudo-élément */
+  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out; /* Transition pour la couleur de fond, de texte et de bordure */
+  color: #fff; /* Assure que le texte reste blanc sur le fond bleu par défaut */
+  border-color: #007bff; /* Couleur de bordure par défaut de btn-primary */
+}
+
+/* Effet de reflet (pseudo-élément ::before) */
+.login-card .btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: skewX(-20deg);
+  opacity: 0;
+  transition: all 0.6s ease-in-out;
+  z-index: 0;
+}
+
+/* Animation du reflet au survol du bouton */
+.login-card .btn-primary:hover::before {
+  left: 100%;
+  opacity: 1;
+}
+
+/* Changement de couleur au survol du bouton */
+.login-card .btn-primary:hover {
+  background-color: #000; /* Change le fond en noir */
+  color: #fff; /* Assure que le texte reste blanc */
+  border-color: #000; /* Change la bordure en noir */
+}
+
+/* Styles pour les liens de texte (si nécessaire, sinon peut être supprimé) */
+.text-decoration-none.text-primary {
+  /* Style par défaut de Bootstrap */
+}
+
+/* --- Styles pour la mise en page globale avec sidebar --- */
+.app-layout {
+  display: flex; /* Active Flexbox pour aligner sidebar et contenu */
+  min-height: 100vh; /* Assure que le layout prend au moins toute la hauteur de la vue */
+  /* Ajoutez un padding-top pour laisser de la place à la navbar fixe */
+  /* Augmenté légèrement pour plus d'espace sous la navbar */
+  padding-top: 70px; /* Ajusté pour descendre le contenu sous la navbar */
+}
+
+/* --- Styles pour la Sidebar --- */
+.sidebar-custom {
+  width: 200px; /* Largeur par défaut réduite pour les grands écrans */
+  flex-shrink: 0; /* Empêche la barre latérale de rétrécir sur les grands écrans */
+  background-color: #f8f9fa !important; /* S'assurer que le fond est bien clair */
+  position: fixed; /* Rendre la sidebar fixe */
+  height: 100vh; /* Prend toute la hauteur de la vue */
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* Ombre légère sur la droite */
+  transition: width 0.3s ease-in-out; /* Anime la propriété 'width' sur 0.3 secondes */
+  top: 20px; /* Ancrer en haut de la fenêtre */
+  left: 0; /* Ancrer à gauche de la fenêtre */
+  color: #000 !important;
+  /* Ajoutez un padding-top égal à la hauteur de la navbar pour que le contenu de la sidebar ne soit pas caché */
+  /* Augmenté légèrement pour correspondre au padding-top de .app-layout */
+  padding-top: 100px; /* Ajusté pour descendre le contenu de la sidebar sous la navbar */
+  /* overflow-y: auto; */ /* Optionnel: Ajoute une barre de défilement si le contenu dépasse */
+}
+
+
+/* Styles pour les liens de navigation et les liens sombres dans la sidebar */
+.sidebar-custom .nav-link,
+.sidebar-custom .link-dark {
+  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+  color: #000000a4 !important; /* Ajoute une transition douce pour la couleur du texte ET le fond */
+}
+
+/* Effet de survol pour les liens de navigation et les liens sombres dans la sidebar */
+.sidebar-custom .nav-link:hover,
+.sidebar-custom .link-dark:hover {
+  color: #01050aa6 !important; /* Change la couleur du texte en bleu Bootstrap au survol */
+  background-color: rgba(0, 123, 255, 0.1); /* Change la couleur de fond au survol */
+}
+
+/* Styles pour les liens de sous-menu (pour s'assurer qu'ils héritent ou sont stylisés) */
+.sidebar-custom .btn-toggle-nav li .nav-link {
+  padding-left: 2rem; /* Décalage pour les sous-menus */
+  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Assurez-vous que les styles de survol s'appliquent aussi aux sous-menus */
+}
+
+/* Effet de survol pour les liens de sous-menu */
+.sidebar-custom .btn-toggle-nav .nav-link:hover {
+  color: #01070e !important; /* Couleur du texte au survol */
+  background-color: rgba(0, 123, 255, 0.1); /* Couleur de fond au survol */
+}
+
+.main-content-container {
+  flex-grow: 1; /* Prend l'espace restant */
+  padding: 20px; /* Ajouter un padding intérieur */
+  overflow-y: auto; /* Permet le défilement du contenu principal */
+  /* Ajoutez une marge à gauche égale à la largeur de la sidebar fixe */
+  margin-left: 110px; /* Doit correspondre à la largeur de la sidebar */
+  /* Le padding-top est géré par le .app-layout parent */
+  margin-top: 20px;
+}
+
+/* --- Styles pour les cartes du Tableau de Bord --- */
+.dashboard-card {
+  border-radius: 10px; /* Coins arrondis */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08); /* Ombre légère */
+  transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Animation légère au survol + transition fond */
+  /* Optionnel: Ajoutez un fond blanc si le fond par défaut de Bootstrap ne suffit pas */
+  /* background-color: #fff; */
+}
+
+/* Effet de survol pour les cartes du tableau de bord (soulève légèrement + change le fond) */
+.dashboard-card:hover {
+  transform: translateY(-5px); /* Soulève légèrement la carte */
+  background-color: #e9ecef; /* Change le fond en gris clair au survol (exemple) */
+}
+
+/* Style pour les cartes cliquables (curseur main) */
+.clickable-card {
+  cursor: pointer; /* Change le curseur en main pour indiquer que c'est cliquable */
+}
+
+/* S'assurer que le texte dans les cartes du tableau de bord est noir */
+.dashboard-card .card-title,
+.dashboard-card .card-text {
+  color: #212529; /* Couleur de texte par défaut de Bootstrap (noir) */
+}
+
+/* --- Styles pour la Navbar fixe --- */
+.navbar-custom {
+  position: fixed; /* Rendre la navbar fixe */
+  top: 0; /* Ancrer en haut de la fenêtre */
+  left: 0; /* Ancrer à gauche de la fenêtre */
+  width: 100%; /* Prend toute la largeur */
+  height: 60px; /* Définir une hauteur fixe (ajustez si nécessaire) */
+  background-color: #007bff; /* Exemple de couleur de fond (bleu Bootstrap) */
+  color: white; /* Exemple de couleur de texte */
+  z-index: 1030; /* Z-index élevé pour s'assurer qu'elle est au-dessus des autres éléments (convention Bootstrap) */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Ombre légère en bas */
+  /* Ajoutez votre padding/styles internes pour le contenu de la navbar ici */
+}
+
+
+/* --- Media Query pour les écrans plus petits (moins de 768px - breakpoint 'md' de Bootstrap) --- */
+@media (max-width: 767.98px) {
+  /* Sur les petits écrans, la sidebar n'est plus fixe */
+  .sidebar-custom {
+    position: static; /* La sidebar n'est plus fixe sur mobile */
+    width: auto; /* Laisser la largeur s'adapter au contenu (les icônes) */
+    padding: 10px; /* Réduire le padding sur les petits écrans */
+    box-shadow: none; /* Supprimer l'ombre sur les petits écrans */
+    height: auto; /* La hauteur s'adapte au contenu */
+    padding-top: 0; /* Supprimer le padding-top ajouté pour la navbar */
+  }
+
+  /* Centrer les icônes horizontalement sur les petits écrans */
+  .sidebar-custom .nav-link,
+  .sidebar-custom .link-dark {
+    justify-content: center;
+    padding: 10px; /* Ajuster le padding des liens sur les petits écrans */
+  }
+
+  /* Ajuster le décalage des sous-menus sur les petits écrans */
+  .sidebar-custom .btn-toggle-nav li .nav-link {
+    padding-left: 10px; /* Ou une autre valeur pour aligner les icônes des sous-menus */
+  }
+
+  /* Sur les petits écrans, le contenu principal prend toute la largeur */
+  .main-content-container {
+    margin-left: 0; /* Supprimer la marge gauche */
+  }
+
+  /* Le padding-top sur .app-layout est toujours nécessaire si la navbar reste fixe sur mobile */
+  /* Si la navbar n'est PAS fixe sur mobile, supprimez le padding-top de .app-layout dans cette media query */
+  /* Exemple si la navbar n'est pas fixe sur mobile: */
+  /*
+  .app-layout {
+      padding-top: 0;
+  }
+  */
+}
+/* --- Fin Media Query --- */
+/* Styles pour l'impression */
+@media print {
+  /* Masquer les éléments ayant la classe 'no-print' */
+  .no-print {
+    display: none !important; /* Utiliser !important pour s'assurer que le masquage est appliqué */
+  }
+
+  /* Masquer la navbar et la sidebar (ajustez les sélecteurs si vos classes sont différentes) */
+  /* Ces classes sont basées sur le composant MainLayout et Sidebar typiques */
+  .navbar-custom, /* Remplacez .navbar-custom par la classe réelle de votre navbar si elle est différente */
+  .sidebar-custom {
+    display: none !important;
+  }
+
+  /* Ajuster le conteneur principal pour qu'il prenne toute la largeur lors de l'impression */
+  .main-content-container {
+    margin-left: 0 !important; /* Supprimer la marge laissée par la sidebar */
+    padding-top: 0 !important; /* Supprimer le padding laissé par la navbar */
+    overflow: visible !important; /* Assurer que tout le contenu est visible et non tronqué */
+    width: 100% !important; /* Utiliser toute la largeur disponible */
+  }
+
+  /* Ajuster le conteneur Bootstrap si nécessaire */
+  .container {
+    width: 100% !important; /* Utiliser toute la largeur de la page imprimée */
+    max-width: none !important; /* Supprimer la limitation de largeur maximale */
+    padding: 0 15px !important; /* Conserver un léger padding horizontal si désiré, ou mettez 0 */
+  }
+
+  /* Styles spécifiques pour le tableau imprimé */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important; /* Assurer des bordures propres */
+  }
+
+  th, td {
+    border: 1px solid #ddd !important; /* Ajouter des bordures aux cellules */
+    padding: 8px !important; /* Ajouter un peu de padding aux cellules */
+    /* Supprimer les couleurs de fond pour économiser l'encre */
+    background-color: transparent !important;
+  }
+
+  /* S'assurer que les liens n'affichent pas leur URL entre parenthèses */
+  a[href]:after {
+    content: none !important;
+  }
+}
+/* src/App.css */
+
+/* ... autres styles ... */
+
+.right-sidebar-custom {
+  width: 100px; /* Définis la largeur souhaitée ici */
+  flex-shrink: 0;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  height: 70vh;
+  z-index: 999;
+  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+  background-color: #f8f9fa !important; /* Ensure it's light gray */
+}
+
+/* Style for clickable items (if you have them) */
+.clickable-item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickable-item:hover {
+  background-color: #e9ecef !important; /* Light gray on hover */
+}
+
+
+/* Media query for screens smaller than 768px (Bootstrap's 'md' breakpoint) */
+@media (max-width: 767.98px) {
+  .right-sidebar-custom {
+    transform: translateX(100%); /* Hide sidebar by moving it completely off-screen to the right */
+    opacity: 0; /* Make it invisible */
+    pointer-events: none; /* Disable interactions when hidden */
+  }
+
+  .right-sidebar-custom.open {
+    transform: translateX(0%); /* Bring sidebar back into view */
+    opacity: 1; /* Make it visible */
+    pointer-events: auto; /* Enable interactions when open */
+  }
+
+  /* If your main content has a right margin or uses a grid, you might need to adjust it here */
+  /* For example, if your main content container is named 'app-content' */
+  /*
+  .app-content {
+    margin-right: 0;
+    transition: margin-right 0.3s ease-in-out;
+  }
+
+  .right-sidebar-custom.open + .app-content { // Adjust selector based on your HTML structure
+    margin-right: 280px; // Or whatever your sidebar width is
+  }
+  */
+
+  /* Hide the toggle button on larger screens (this is handled by d-md-none in JSX) */
+}
+
+/* For larger screens, ensure the sidebar is always visible and positioned correctly */
+@media (min-width: 1000px) {
+  .right-sidebar-custom {
+    transform: translateX(0%); /* Always visible on large screens */
+    opacity: 1;
+    position: sticky; /* Keep it in the flow or use fixed depending on your layout */
+    top: 70px; /* Align to the top, allowing space for the navbar */
+    height: calc(100vh - 70px); /* Full height minus navbar height */
+    width: 280px; /* Explicit width for larger screens */
+    overflow-y: auto; /* Enable scrolling if content overflows */
+  }
+
+  /* Ensure the toggle button is hidden on larger screens */
+  .d-md-none {
+    display: none !important;
+  }
+}
+
+.container-fluid {
+  width: 100%; /* Le conteneur prend toute la largeur disponible de son parent */
+  padding-right: var(--bs-gutter-x,.75rem); /* Ajoute un rembourrage à droite (la valeur exacte peut varier) */
+  padding-left: var(--bs-gutter-x,.75rem); /* Ajoute un rembourrage à gauche (la valeur exacte peut varier) */
+  margin-right: auto; /* Contrairement à .container, ces marges auto ne font généralement rien ici car la largeur est 100% */
+  margin-left: auto;
+}
