@@ -2,389 +2,583 @@
 
 /* Styles généraux pour assurer que l'application prend toute la hauteur et la largeur */
 html, body, #root, .App {
-  height: 100%; /* Assure que ces éléments prennent 100% de la hauteur de leur parent */
-  width: 100%; /* Assure que ces éléments prennent 100% de la largeur de leur parent */
-  margin: 0; /* Supprime les marges par défaut du body */
-  padding: 0; /* Supprime les paddings par défaut */
-  position: relative; /* Utile si vous avez des éléments positionnés absolument à l'intérieur */
-  overflow-x: hidden; /* Empêche le défilement horizontal non désiré */
-  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
-  color: #212529; /* Couleur de texte par défaut pour Bootstrap (noir) */
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    color: #212529;
 }
 
 /* --- Styles pour le conteneur de la page de connexion --- */
 .login-page-container {
-  background-color: #ffffff; /* Le fond principal est blanc */
-  z-index: 1; /* Assure que le contenu est au-dessus de la vague */
-  min-height: 100vh; /* Assure que le conteneur prend au moins toute la hauteur de la vue */
-  height: 100%; /* Force la hauteur à 100% du parent disponible */
-  width: 100%; /* Force la largeur à 100% du parent disponible */
-  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
-  display: flex; /* Active Flexbox */
-  justify-content: center; /* Centre les éléments enfants (le formulaire) horizontalement */
-  align-items: center; /* Centre les éléments enfants (le formulaire) verticalement */
-  position: relative; /* Position relative pour le pseudo-élément */
-  overflow: hidden; /* Cache le débordement du pseudo-élément si nécessaire */
+    background-color: #ffffff;
+    z-index: 1;
+    min-height: 100vh;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
 }
 
 /* Pseudo-élément pour la vague bleue en diagonale */
 .login-page-container::before {
-  content: ''; /* Nécessaire pour les pseudo-éléments */
-  position: absolute; /* Positionnement absolu par rapport au conteneur parent */
-  /* Ajustez top et right pour positionner le point de départ de la vague */
-  top: -80vh; /* Commence bien au-dessus du haut de la page */
-  right: -80vw; /* Commence bien à droite du côté droit de la page */
-  /* Ajustez width et height pour contrôler la taille de la vague */
-  width: 200vw;
-  height: 200vh;
-  background-color: #007bff; /* Couleur bleue de Bootstrap */
-  border-bottom-left-radius: 100% 150vh; /* Rayon horizontal 100%, rayon vertical ajusté */
-  z-index: 0; /* Ajustez le z-index pour qu'il soit en dessous du contenu (le formulaire) */
+    content: '';
+    position: absolute;
+    top: -80vh;
+    right: -80vw;
+    width: 200vw;
+    height: 200vh;
+    background-color: #007bff;
+    border-bottom-left-radius: 100% 150vh;
+    z-index: 0;
 }
 
 /* --- Styles pour la carte du formulaire de connexion --- */
 .login-card {
-  border-radius: 10px; /* Coins arrondis */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Ombre légère */
-  width: 100%; /* Prend 100% de la largeur disponible... */
-  max-width: 400px; /* ...mais pas plus de 400px */
-  box-sizing: border-box; /* Inclut padding et border dans la taille de l'élément */
-  position: relative; /* Position relative et z-index élevé pour s'assurer qu'il est au-dessus de la vague */
-  z-index: 2; /* Plus élevé que le pseudo-élément */
-  background-color: rgba(255, 255, 255, 0.8); /* Fond blanc légèrement transparent */
-  transition: transform 0.3s ease-in-out; /* Anime la propriété transform sur 0.3s */
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 2;
+    background-color: rgba(255, 255, 255, 0.8);
+    transition: transform 0.3s ease-in-out;
 }
 
 /* Effet d'agrandissement au survol de la carte */
 .login-card:hover {
-  transform: scale(1.05); /* Agrandit la carte de 5% */
+    transform: scale(1.05);
 }
 
 /* --- Styles pour le cercle de l'icône utilisateur --- */
 .user-icon-circle {
-  width: 80px; /* Taille du cercle */
-  height: 80px; /* Taille du cercle */
-  border-radius: 50%; /* Rendre l'élément circulaire */
-  display: flex; /* Utilisation de flexbox pour centrer l'icône à l'intérieur du cercle */
-  justify-content: center;
-  align-items: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* --- Styles pour le bouton principal de la carte de connexion --- */
 .login-card .btn-primary {
-  position: relative; /* Nécessaire pour positionner le pseudo-élément */
-  overflow: hidden; /* Cache le pseudo-élément lorsqu'il est en dehors des bords */
-  z-index: 1; /* Assure que le contenu du bouton est au-dessus du pseudo-élément */
-  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out; /* Transition pour la couleur de fond, de texte et de bordure */
-  color: #fff; /* Assure que le texte reste blanc sur le fond bleu par défaut */
-  border-color: #007bff; /* Couleur de bordure par défaut de btn-primary */
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+    color: #fff;
+    border-color: #007bff;
 }
 
 /* Effet de reflet (pseudo-élément ::before) */
 .login-card .btn-primary::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.3);
-  transform: skewX(-20deg);
-  opacity: 0;
-  transition: all 0.6s ease-in-out;
-  z-index: 0;
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: skewX(-20deg);
+    opacity: 0;
+    transition: all 0.6s ease-in-out;
+    z-index: 0;
 }
 
 /* Animation du reflet au survol du bouton */
 .login-card .btn-primary:hover::before {
-  left: 100%;
-  opacity: 1;
+    left: 100%;
+    opacity: 1;
 }
 
 /* Changement de couleur au survol du bouton */
 .login-card .btn-primary:hover {
-  background-color: #000; /* Change le fond en noir */
-  color: #fff; /* Assure que le texte reste blanc */
-  border-color: #000; /* Change la bordure en noir */
+    background-color: #000;
+    color: #fff;
+    border-color: #000;
 }
 
-/* Styles pour les liens de texte (si nécessaire, sinon peut être supprimé) */
-.text-decoration-none.text-primary {
-  /* Style par défaut de Bootstrap */
+/* --- Styles pour la Navbar fixe --- */
+.navbar-custom {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background-color: #007bff;
+    color: white;
+    z-index: 1030;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 /* --- Styles pour la mise en page globale avec sidebar --- */
 .app-layout {
-  display: flex; /* Active Flexbox pour aligner sidebar et contenu */
-  min-height: 100vh; /* Assure que le layout prend au moins toute la hauteur de la vue */
-  /* Ajoutez un padding-top pour laisser de la place à la navbar fixe */
-  /* Augmenté légèrement pour plus d'espace sous la navbar */
-  padding-top: 70px; /* Ajusté pour descendre le contenu sous la navbar */
+    display: flex;
+    min-height: 100vh;
+    padding-top: 70px; /* Ajusté pour descendre le contenu sous la navbar fixe */
 }
 
-/* --- Styles pour la Sidebar --- */
+/* --- Styles de base pour la Sidebar GAUCHE --- */
 .sidebar-custom {
-  width: 200px; /* Largeur par défaut réduite pour les grands écrans */
-  flex-shrink: 0; /* Empêche la barre latérale de rétrécir sur les grands écrans */
-  background-color: #f8f9fa !important; /* S'assurer que le fond est bien clair */
-  position: fixed; /* Rendre la sidebar fixe */
-  height: 100vh; /* Prend toute la hauteur de la vue */
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); /* Ombre légère sur la droite */
-  transition: width 0.3s ease-in-out; /* Anime la propriété 'width' sur 0.3 secondes */
-  top: 20px; /* Ancrer en haut de la fenêtre */
-  left: 0; /* Ancrer à gauche de la fenêtre */
-  color: #000 !important;
-  /* Ajoutez un padding-top égal à la hauteur de la navbar pour que le contenu de la sidebar ne soit pas caché */
-  /* Augmenté légèrement pour correspondre au padding-top de .app-layout */
-  padding-top: 100px; /* Ajusté pour descendre le contenu de la sidebar sous la navbar */
-  /* overflow-y: auto; */ /* Optionnel: Ajoute une barre de défilement si le contenu dépasse */
+    flex-shrink: 0;
+    background-color: #f8f9fa !important;
+    position: fixed;
+    height: 100vh;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    transition: width 0.3s ease-in-out;
+    top: 0;
+    left: 0;
+    color: #000 !important;
+    padding-top: 70px;
+    z-index: 1020;
+    overflow-x: hidden;
 }
 
-
-/* Styles pour les liens de navigation et les liens sombres dans la sidebar */
+/* Styles pour les liens de navigation (icônes et texte) */
 .sidebar-custom .nav-link,
 .sidebar-custom .link-dark {
-  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out;
-  color: #000000a4 !important; /* Ajoute une transition douce pour la couleur du texte ET le fond */
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 10px 15px;
+    transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    color: #000000a4 !important;
 }
 
-/* Effet de survol pour les liens de navigation et les liens sombres dans la sidebar */
-.sidebar-custom .nav-link:hover,
-.sidebar-custom .link-dark:hover {
-  color: #01050aa6 !important; /* Change la couleur du texte en bleu Bootstrap au survol */
-  background-color: rgba(0, 123, 255, 0.1); /* Change la couleur de fond au survol */
+/* Espacement entre icône et texte */
+.sidebar-custom .nav-link i,
+.sidebar-custom .link-dark i {
+    margin-right: 10px;
+    flex-shrink: 0;
 }
 
-/* Styles pour les liens de sous-menu (pour s'assurer qu'ils héritent ou sont stylisés) */
+/* Style pour les sous-menus */
 .sidebar-custom .btn-toggle-nav li .nav-link {
-  padding-left: 2rem; /* Décalage pour les sous-menus */
-  transition: color 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Assurez-vous que les styles de survol s'appliquent aussi aux sous-menus */
+    padding-left: 2rem;
 }
 
-/* Effet de survol pour les liens de sous-menu */
-.sidebar-custom .btn-toggle-nav .nav-link:hover {
-  color: #01070e !important; /* Couleur du texte au survol */
-  background-color: rgba(0, 123, 255, 0.1); /* Couleur de fond au survol */
-}
-
+/* --- Styles pour le Conteneur du Contenu Principal --- */
 .main-content-container {
-  flex-grow: 1; /* Prend l'espace restant */
-  padding: 20px; /* Ajouter un padding intérieur */
-  overflow-y: auto; /* Permet le défilement du contenu principal */
-  /* Ajoutez une marge à gauche égale à la largeur de la sidebar fixe */
-  margin-left: 110px; /* Doit correspondre à la largeur de la sidebar */
-  /* Le padding-top est géré par le .app-layout parent */
-  margin-top: 20px;
+    flex-grow: 1;
+    padding: 5px;
+    overflow-y: auto;
+    margin-top: 20px;
+    transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out;
 }
+
+/* --- Comportement de la Sidebar GAUCHE pour TOUTES les dimensions --- */
+/* Par défaut, la sidebar gauche est compacte (icônes) et s'étend au survol/clic */
+.sidebar-custom {
+    width: 60px; /* Largeur par défaut : compacte (icônes) */
+}
+
+/* Cache le texte des liens par défaut */
+.sidebar-custom .nav-link span,
+.sidebar-custom .link-dark span,
+.sidebar-custom .btn-toggle-nav {
+    display: none;
+}
+
+/* Centre les icônes quand le texte est caché */
+.sidebar-custom .nav-link i,
+.sidebar-custom .link-dark i {
+    margin-right: 0;
+    width: 100%;
+    text-align: center;
+}
+
+/* Supprime le padding gauche des sous-menus réduits */
+.sidebar-custom .btn-toggle-nav li .nav-link {
+    padding-left: 0;
+}
+
+/* Effet d'expansion au survol/clic pour la sidebar gauche */
+.sidebar-custom:hover,
+.sidebar-custom.expanded { /* Utilisez .expanded avec JS pour un clic */
+    width: 200px; /* S'agrandit à la largeur complète */
+    box-shadow: 4px 0 10px rgba(0, 0, 0, 0.2); /* Ombre plus prononcée */
+}
+
+/* Réaffiche le texte et repositionne les icônes lors de l'expansion de la sidebar gauche */
+.sidebar-custom:hover .nav-link span,
+.sidebar-custom:hover .link-dark span,
+.sidebar-custom:hover .btn-toggle-nav,
+.sidebar-custom.expanded .nav-link span,
+.sidebar-custom.expanded .link-dark span,
+.sidebar-custom.expanded .btn-toggle-nav {
+    display: inline;
+}
+
+.sidebar-custom:hover .nav-link i,
+.sidebar-custom:hover .link-dark i,
+.sidebar-custom.expanded .nav-link i,
+.sidebar-custom.expanded .link-dark i {
+    margin-right: 10px;
+    width: auto;
+    text-align: left;
+}
+
+/* Le contenu principal a une marge égale à la barre latérale gauche réduite par défaut */
+.main-content-container {
+    margin-left: 20px;
+}
+
+/* --- Media Query pour la Sidebar GAUCHE sur les GRANDS ÉCRANS (>= 1340px) --- */
+/* Sur les grands écrans, la sidebar GAUCHE est toujours affichée en entier */
+@media (min-width: 1340px) {
+    .sidebar-custom {
+        width: 190px; /* Largeur complète */
+    }
+    .sidebar-custom .nav-link span,
+    .sidebar-custom .link-dark span,
+    .sidebar-custom .btn-toggle-nav {
+        display: inline; /* Affiche toujours le texte */
+    }
+    .sidebar-custom .nav-link i,
+    .sidebar-custom .link-dark i {
+        margin-right: 10px;
+        width: auto;
+        text-align: left;
+    }
+    .sidebar-custom .btn-toggle-nav li .nav-link {
+        padding-left: 2rem;
+    }
+    .sidebar-custom:hover { /* Annule les effets de survol qui changeraient la largeur */
+        width: 200px;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    }
+    .main-content-container {
+        margin-left: 150px; /* Le contenu principal a une marge pour la sidebar gauche complète */
+    }
+}
+
 
 /* --- Styles pour les cartes du Tableau de Bord --- */
 .dashboard-card {
-  border-radius: 10px; /* Coins arrondis */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08); /* Ombre légère */
-  transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out; /* Animation légère au survol + transition fond */
-  /* Optionnel: Ajoutez un fond blanc si le fond par défaut de Bootstrap ne suffit pas */
-  /* background-color: #fff; */
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
 }
 
-/* Effet de survol pour les cartes du tableau de bord (soulève légèrement + change le fond) */
+/* Effet de survol pour les cartes du tableau de bord */
 .dashboard-card:hover {
-  transform: translateY(-5px); /* Soulève légèrement la carte */
-  background-color: #e9ecef; /* Change le fond en gris clair au survol (exemple) */
+    transform: translateY(-5px);
+    background-color: #e9ecef;
 }
 
 /* Style pour les cartes cliquables (curseur main) */
 .clickable-card {
-  cursor: pointer; /* Change le curseur en main pour indiquer que c'est cliquable */
+    cursor: pointer;
 }
 
 /* S'assurer que le texte dans les cartes du tableau de bord est noir */
 .dashboard-card .card-title,
 .dashboard-card .card-text {
-  color: #212529; /* Couleur de texte par défaut de Bootstrap (noir) */
+    color: #212529;
 }
 
-/* --- Styles pour la Navbar fixe --- */
-.navbar-custom {
-  position: fixed; /* Rendre la navbar fixe */
-  top: 0; /* Ancrer en haut de la fenêtre */
-  left: 0; /* Ancrer à gauche de la fenêtre */
-  width: 100%; /* Prend toute la largeur */
-  height: 60px; /* Définir une hauteur fixe (ajustez si nécessaire) */
-  background-color: #007bff; /* Exemple de couleur de fond (bleu Bootstrap) */
-  color: white; /* Exemple de couleur de texte */
-  z-index: 1030; /* Z-index élevé pour s'assurer qu'elle est au-dessus des autres éléments (convention Bootstrap) */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Ombre légère en bas */
-  /* Ajoutez votre padding/styles internes pour le contenu de la navbar ici */
-}
-
-
-/* --- Media Query pour les écrans plus petits (moins de 768px - breakpoint 'md' de Bootstrap) --- */
-@media (max-width: 767.98px) {
-  /* Sur les petits écrans, la sidebar n'est plus fixe */
-  .sidebar-custom {
-    position: static; /* La sidebar n'est plus fixe sur mobile */
-    width: auto; /* Laisser la largeur s'adapter au contenu (les icônes) */
-    padding: 10px; /* Réduire le padding sur les petits écrans */
-    box-shadow: none; /* Supprimer l'ombre sur les petits écrans */
-    height: auto; /* La hauteur s'adapte au contenu */
-    padding-top: 0; /* Supprimer le padding-top ajouté pour la navbar */
-  }
-
-  /* Centrer les icônes horizontalement sur les petits écrans */
-  .sidebar-custom .nav-link,
-  .sidebar-custom .link-dark {
-    justify-content: center;
-    padding: 10px; /* Ajuster le padding des liens sur les petits écrans */
-  }
-
-  /* Ajuster le décalage des sous-menus sur les petits écrans */
-  .sidebar-custom .btn-toggle-nav li .nav-link {
-    padding-left: 10px; /* Ou une autre valeur pour aligner les icônes des sous-menus */
-  }
-
-  /* Sur les petits écrans, le contenu principal prend toute la largeur */
-  .main-content-container {
-    margin-left: 0; /* Supprimer la marge gauche */
-  }
-
-  /* Le padding-top sur .app-layout est toujours nécessaire si la navbar reste fixe sur mobile */
-  /* Si la navbar n'est PAS fixe sur mobile, supprimez le padding-top de .app-layout dans cette media query */
-  /* Exemple si la navbar n'est pas fixe sur mobile: */
-  /*
-  .app-layout {
-      padding-top: 0;
-  }
-  */
-}
-/* --- Fin Media Query --- */
-/* Styles pour l'impression */
+/* --- Styles pour l'impression --- */
 @media print {
-  /* Masquer les éléments ayant la classe 'no-print' */
-  .no-print {
-    display: none !important; /* Utiliser !important pour s'assurer que le masquage est appliqué */
-  }
-
-  /* Masquer la navbar et la sidebar (ajustez les sélecteurs si vos classes sont différentes) */
-  /* Ces classes sont basées sur le composant MainLayout et Sidebar typiques */
-  .navbar-custom, /* Remplacez .navbar-custom par la classe réelle de votre navbar si elle est différente */
-  .sidebar-custom {
-    display: none !important;
-  }
-
-  /* Ajuster le conteneur principal pour qu'il prenne toute la largeur lors de l'impression */
-  .main-content-container {
-    margin-left: 0 !important; /* Supprimer la marge laissée par la sidebar */
-    padding-top: 0 !important; /* Supprimer le padding laissé par la navbar */
-    overflow: visible !important; /* Assurer que tout le contenu est visible et non tronqué */
-    width: 100% !important; /* Utiliser toute la largeur disponible */
-  }
-
-  /* Ajuster le conteneur Bootstrap si nécessaire */
-  .container {
-    width: 100% !important; /* Utiliser toute la largeur de la page imprimée */
-    max-width: none !important; /* Supprimer la limitation de largeur maximale */
-    padding: 0 15px !important; /* Conserver un léger padding horizontal si désiré, ou mettez 0 */
-  }
-
-  /* Styles spécifiques pour le tableau imprimé */
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important; /* Assurer des bordures propres */
-  }
-
-  th, td {
-    border: 1px solid #ddd !important; /* Ajouter des bordures aux cellules */
-    padding: 8px !important; /* Ajouter un peu de padding aux cellules */
-    /* Supprimer les couleurs de fond pour économiser l'encre */
-    background-color: transparent !important;
-  }
-
-  /* S'assurer que les liens n'affichent pas leur URL entre parenthèses */
-  a[href]:after {
-    content: none !important;
-  }
+    .no-print {
+        display: none !important;
+    }
+    .navbar-custom,
+    .sidebar-custom,
+    .right-sidebar-custom {
+        display: none !important;
+    }
+    .main-content-container {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-top: 0 !important;
+        overflow: visible !important;
+        width: 100% !important;
+    }
+    .container {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 15px !important;
+    }
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        border: 1px solid #ddd !important;
+        padding: 8px !important;
+        background-color: transparent !important;
+    }
+    a[href]:after {
+        content: none !important;
+    }
 }
-/* src/App.css */
 
-/* ... autres styles ... */
+/* --- Styles de la Sidebar DROITE (right-sidebar-custom) --- */
 
+/* Styles de base : le sidebar est caché par défaut et ne montre que sa bordure fine */
 .right-sidebar-custom {
-  width: 100px; /* Définis la largeur souhaitée ici */
-  flex-shrink: 0;
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-  position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  height: 70vh;
-  z-index: 999;
-  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
-  background-color: #f8f9fa !important; /* Ensure it's light gray */
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 10px; /* Caché par défaut, ne laisse pas de largeur visible */
+    overflow: hidden; /* Cache le contenu */
+    transition: width 0.3s ease-in-out, transform 0.3s ease-in-out, border-left 0.3s ease-in-out;
+    z-index: 1000;
+    background-color: #f8f9fa !important;
+    box-shadow: none; /* Pas d'ombre par défaut */
+    padding-top: 70px;
+    color: #000 !important;
+    /* La bordure fine visible lorsqu'il est fermé */
+    border-left: 1px solid #dee2e6; /* Bordure par défaut */
+    transform: translateX(calc(100% - 1px)); /* Positionne hors écran, ne laissant qu'un pixel de bordure */
 }
 
-/* Style for clickable items (if you have them) */
+/* Le contenu interne du sidebar droit est caché par défaut */
+.right-sidebar-custom .sidebar-content {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out 0.1s;
+    padding: 0 15px;
+}
+
+/* Styles des icônes dans le sidebar droit */
+.right-sidebar-custom .sidebar-icon {
+    display: flex; /* Assure que l'icône est affichée */
+    justify-content: center;
+    align-items: center;
+    width: 60px; /* La largeur de l'icône pour le mode compact */
+    height: 60px;
+    font-size: 1.5rem;
+    color: #000000a4;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    position: absolute; /* Positionne l'icône sur le bord */
+    left: 0;
+    top: 70px; /* Aligné sous la navbar */
+}
+
+.right-sidebar-custom .sidebar-icon:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+}
+
+/* Style for clickable items */
 .clickable-item {
-  cursor: pointer;
-  transition: background-color 0.2s ease;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
 }
 
 .clickable-item:hover {
-  background-color: #e9ecef !important; /* Light gray on hover */
+    background-color: #e9ecef !important;
 }
 
 
-/* Media query for screens smaller than 768px (Bootstrap's 'md' breakpoint) */
-@media (max-width: 767.98px) {
-  .right-sidebar-custom {
-    transform: translateX(100%); /* Hide sidebar by moving it completely off-screen to the right */
-    opacity: 0; /* Make it invisible */
-    pointer-events: none; /* Disable interactions when hidden */
-  }
+/* --- Media Queries pour le sidebar DROIT --- */
 
-  .right-sidebar-custom.open {
-    transform: translateX(0%); /* Bring sidebar back into view */
-    opacity: 1; /* Make it visible */
-    pointer-events: auto; /* Enable interactions when open */
-  }
+/* Comportement pour les écrans de taille moyenne à petite (jusqu'à 1339.98px) */
+/* C'est ici que le sidebar droit reste caché et n'apparaît qu'au survol/clic */
+@media (max-width: 1200px) {
+    .right-sidebar-custom {
+        width: 5px; /* Initialement pas de largeur */
+        transform: translateX(calc(100% - 1px)); /* Ne laisse qu'une bordure de 1px visible */
+        box-shadow: none; /* Pas d'ombre visible quand juste la bordure */
+        /* Bordure déjà définie dans les styles de base */
+    }
 
-  /* If your main content has a right margin or uses a grid, you might need to adjust it here */
-  /* For example, if your main content container is named 'app-content' */
-  /*
-  .app-content {
-    margin-right: 0;
-    transition: margin-right 0.3s ease-in-out;
-  }
+    /* Le sidebar apparaît et prend une largeur compacte (icônes) au survol/clic */
+    /* Note: Le "open" permettra de le maintenir ouvert après un clic */
+    .right-sidebar-custom:hover,
+    .right-sidebar-custom.open {
+        width: 300px; /* S'élargit à la largeur complète (300px ou celle que vous voulez) */
+        transform: translateX(0); /* Ramène à l'écran */
+        box-shadow: -4px 0 10px rgba(0,0,0,0.2); /* Ombre plus prononcée */
+        /* Bordure reste la même */
+    }
 
-  .right-sidebar-custom.open + .app-content { // Adjust selector based on your HTML structure
-    margin-right: 280px; // Or whatever your sidebar width is
-  }
-  */
+    /* Le contenu (texte) est visible seulement quand il est ouvert (class .open) */
+    .right-sidebar-custom .sidebar-content {
+        opacity: 0; /* Caché quand compact */
+        padding-left: 60px; /* Pour laisser de la place à l'icône */
+    }
+    .right-sidebar-custom.open .sidebar-content {
+        opacity: 1; /* Visible quand le sidebar est ouvert */
+        padding-left: 0; /* Ajuste le padding si l'icône n'est plus fixe */
+    }
 
-  /* Hide the toggle button on larger screens (this is handled by d-md-none in JSX) */
+    /* L'icône est toujours affichée, mais sa position est clé */
+    .right-sidebar-custom .sidebar-icon {
+        display: flex; /* Assure que l'icône est toujours visible */
+        position: absolute; /* Positionne l'icône indépendamment du contenu */
+        left: 0; /* Toujours sur le bord gauche du sidebar */
+        top: 70px; /* Ajustez si nécessaire */
+        /* La bordure du sidebar sert de point de déclenchement */
+    }
+
+    /* Le main-content-container n'aura pas de margin-right fixe ici, car la sidebar est flottante */
+    .main-content-container {
+        margin-right: 0;
+    }
 }
 
-/* For larger screens, ensure the sidebar is always visible and positioned correctly */
-@media (min-width: 1000px) {
-  .right-sidebar-custom {
-    transform: translateX(0%); /* Always visible on large screens */
-    opacity: 1;
-    position: sticky; /* Keep it in the flow or use fixed depending on your layout */
-    top: 70px; /* Align to the top, allowing space for the navbar */
-    height: calc(100vh - 70px); /* Full height minus navbar height */
-    width: 280px; /* Explicit width for larger screens */
-    overflow-y: auto; /* Enable scrolling if content overflows */
-  }
+/* Comportement pour les grands écrans (>= 1340px) */
+/* Ici, le sidebar droit est TOUJOURS AFFICHÉ EN ENTIER */
+@media (min-width: 1340px) {
+    .right-sidebar-custom {
+        width: 200px; /* Largeur par défaut : toujours large */
+        transform: translateX(0); /* Toujours visible */
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1); /* Ombre subtile */
+        border-left: 1px solid #dee2e6; /* Bordure toujours visible */
+    }
 
-  /* Ensure the toggle button is hidden on larger screens */
-  .d-md-none {
-    display: none !important;
-  }
+    /* Le contenu est toujours visible */
+    .right-sidebar-custom .sidebar-content {
+        opacity: 1; /* Contenu toujours visible */
+        padding: 0 15px; /* Assure le padding du contenu */
+    }
+
+    /* L'icône peut ne plus être nécessaire ou être stylisée différemment si le sidebar est toujours large */
+    .right-sidebar-custom .sidebar-icon {
+        display: none; /* Cache l'icône fixe si le sidebar est toujours large et le texte complet visible */
+    }
+
+    /* Désactive les effets de survol/clic qui changeraient la largeur */
+    .right-sidebar-custom:hover,
+    .right-sidebar-custom.open {
+        width: 300px; /* Reste à la largeur complète */
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        border-left: 1px solid #dee2e6;
+    }
+
+    /* Le contenu principal a une marge pour le sidebar droit complet */
+    .main-content-container {
+        margin-right: 100px;
+
+    }
 }
 
+/* Bootstrap container-fluid styles - kept for compatibility */
 .container-fluid {
-  width: 100%; /* Le conteneur prend toute la largeur disponible de son parent */
-  padding-right: var(--bs-gutter-x,.75rem); /* Ajoute un rembourrage à droite (la valeur exacte peut varier) */
-  padding-left: var(--bs-gutter-x,.75rem); /* Ajoute un rembourrage à gauche (la valeur exacte peut varier) */
-  margin-right: auto; /* Contrairement à .container, ces marges auto ne font généralement rien ici car la largeur est 100% */
-  margin-left: auto;
+    width: 100%;
+    padding-right: var(--bs-gutter-x,.75rem);
+    padding-left: var(--bs-gutter-x,.75rem);
+    margin-right: auto;
+    margin-left: auto;
+}
+/* src/App.css ou votre fichier CSS principal */
+
+/* --- Styles personnalisés pour la Navbar --- */
+.navbar-custom {
+    background-color: #007bff; /* Un bleu plus vif pour le fond */
+    /* background-color: #2c3e50; */ /* Exemple de bleu foncé (style Flat UI) */
+    /* Si vous voulez une barre de navigation fixe en haut de l'écran */
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1030; /* Assurez-vous qu'elle est au-dessus des autres éléments */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Ombre légère pour la profondeur */
+}
+
+.navbar-custom .navbar-brand {
+    color: #ffffff; /* Couleur du texte du logo */
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.navbar-custom .navbar-brand:hover {
+    color: #e0e0e0; /* Couleur au survol */
+}
+
+.navbar-custom .navbar-nav .nav-link {
+    color: #ffffff; /* Couleur des liens de navigation */
+}
+
+.navbar-custom .navbar-nav .nav-link:hover {
+    color: #e0e0e0; /* Couleur des liens au survol */
+}
+
+.navbar-custom .form-control {
+    border-color: rgba(255, 255, 255, 0.5); /* Bordure blanche semi-transparente pour le champ de recherche */
+    background-color: rgba(255, 255, 255, 0.1); /* Fond légèrement transparent */
+    color: #ffffff; /* Texte de saisie blanc */
+}
+
+.navbar-custom .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.7); /* Couleur du placeholder */
+}
+
+/* Styles pour le bouton de recherche (outline-light) */
+.navbar-custom .btn-outline-light {
+    color: #ffffff;
+    border-color: #ffffff;
+}
+
+.navbar-custom .btn-outline-light:hover {
+    color: #007bff; /* Couleur du texte au survol, pour correspondre au fond de la navbar */
+    background-color: #ffffff; /* Fond blanc au survol */
+    border-color: #ffffff;
+}
+
+/* Styles pour le bouton de bascule (toggler) */
+.navbar-custom .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.5); /* Bordure semi-transparente */
+}
+
+.navbar-custom .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* --- Ajustements spécifiques pour les petits écrans --- */
+
+/* Pour les écrans plus petits que 'lg' (992px), le menu est en mode 'collapse' */
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        /* Assurez-vous que le fond s'étend pour couvrir le contenu déplié */
+        background-color: #007bff; /* Appliquez la même couleur de fond que la navbar */
+        /* Vous pouvez ajouter un peu de padding si les éléments sont trop collés */
+        padding-bottom: 10px;
+    }
+
+    /* Le champ de recherche et le bouton de recherche sont côte à côte */
+    .navbar-collapse form.d-flex {
+        width: 100%; /* Occupe toute la largeur disponible dans le menu déplié */
+        justify-content: center; /* Centre le contenu du formulaire */
+        flex-wrap: nowrap; /* Empêche le retour à la ligne */
+        padding: 0 15px; /* Petit padding horizontal */
+        margin-bottom: 10px; /* Espace sous le formulaire */
+    }
+
+    .navbar-collapse form.d-flex input.form-control {
+        flex-grow: 1; /* Permet au champ de recherche de prendre l'espace disponible */
+        max-width: 300px; /* Limite la largeur max pour qu'il ne soit pas trop grand */
+    }
+
+    /* Ajustement pour l'icône de recherche cliquable sur petits écrans */
+    .navbar-nav .nav-item .btn-outline-light i.bi-search {
+        font-size: 1.2rem; /* Taille de l'icône de recherche */
+    }
+
+    /* Ajustement pour le bouton de déconnexion sur petits écrans */
+    .navbar-nav .nav-item .btn-outline-light i.bi-box-arrow-right {
+        font-size: 1.2rem; /* Taille de l'icône de déconnexion */
+    }
+
+    /* Ajustement pour les marges des éléments de la navbar */
+    .navbar-nav .nav-item {
+        margin-top: 5px; /* Espace entre les éléments empilés */
+        margin-bottom: 5px;
+    }
+
+    .navbar-nav {
+        width: 100%; /* Pour que les boutons occupent la largeur et soient centrés si besoin */
+        justify-content: center; /* Centre les éléments de la liste horizontalement si espace */
+    }
 }

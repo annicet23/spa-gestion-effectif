@@ -1,0 +1,247 @@
+/* src/CustomNavbar.css */
+
+/* --- Styles personnalisés pour la Navbar --- */
+.navbar-custom {
+    background-color: #007bff; /* Bleu vibrant */
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1030;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.navbar-custom .navbar-brand {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.navbar-custom .navbar-brand:hover {
+    color: #e0e0e0;
+}
+
+/* Couleurs des liens et icônes des boutons 'outline-light' (comme le bouton de recherche) */
+.navbar-custom .nav-link,
+.navbar-custom .btn-outline-light {
+    color: #ffffff;
+    border-color: #ffffff;
+}
+
+.navbar-custom .nav-link:hover,
+.navbar-custom .btn-outline-light:hover {
+    color: #007bff;
+    background-color: #ffffff;
+    border-color: #ffffff;
+}
+
+/* Styles pour l'effet au survol du nom de l'utilisateur */
+.navbar-custom .nav-item .user-info {
+    color: #ffffff;
+    transition: color 0.3s ease, text-decoration 0.3s ease;
+}
+
+.navbar-custom .nav-item .user-info:hover {
+    color: #e0e0e0;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Styles pour le champ de recherche général */
+.navbar-custom .form-control {
+    border-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.navbar-custom .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Styles pour le bouton de bascule (toggler) */
+.navbar-custom .navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.navbar-custom .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Styles pour les icônes de react-icons dans les boutons */
+.navbar-custom .btn-outline-light svg {
+    font-size: 1.2rem;
+    vertical-align: middle;
+}
+
+/* --- STYLES POUR LE TOGGLE SWITCH DE DÉCONNEXION --- */
+.toggle-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 75px;
+    height: 38px;
+    background-color: #e0e0e0;
+    border-radius: 38px;
+    cursor: pointer;
+    transition: background-color 0.4s ease;
+    overflow: hidden;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+}
+
+.toggle-switch.on {
+    background-color: #28a745;
+}
+
+.toggle-slider {
+    position: absolute;
+    content: "";
+    height: 30px;
+    width: 30px;
+    left: 4px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.4s ease, background-color 0.4s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.toggle-switch.on .toggle-slider {
+    transform: translateX(37px);
+    background-color: white;
+}
+
+.toggle-text {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.toggle-text.on-text {
+    left: 8px;
+    color: #ffffff;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.1s;
+}
+
+.toggle-text.off-text {
+    right: 8px;
+    color: #555;
+    opacity: 1;
+    transition: opacity 0.4s ease 0.1s;
+}
+
+.toggle-switch.on .on-text {
+    opacity: 1;
+}
+
+.toggle-switch.on .off-text {
+    opacity: 0;
+}
+
+.toggle-switch.off .on-text {
+    opacity: 0;
+}
+
+.toggle-switch.off .off-text {
+    opacity: 1;
+}
+
+.toggle-switch:hover {
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+}
+
+.toggle-switch:hover .toggle-slider {
+    transform: scale(1.05);
+}
+
+
+/* --- NOUVEAUX AJUSTEMENTS SPÉCIFIQUES POUR LES PETITS ÉCRANS (breakpoint lg de Bootstrap = 992px) --- */
+@media (max-width: 991.98px) {
+    /* Cache le champ de recherche par défaut pour petits écrans */
+    .navbar-collapse form.d-flex {
+        display: none;
+    }
+
+    /* Positionnement des éléments à droite du logo sur petits écrans */
+    .small-screen-nav-items {
+        /* Bootstrap gère déjà le ms-auto pour pousser à droite */
+        /* Assurez-vous que les boutons à l'intérieur ont un bon espacement */
+        align-items: center; /* S'assurer qu'ils sont centrés verticalement */
+    }
+    .small-screen-nav-items .btn,
+    .small-screen-nav-items .toggle-switch {
+        margin-left: 5px; /* Espacement entre le bouton de recherche et le switch */
+    }
+
+
+    /* --- Styles pour le formulaire de recherche qui descend --- */
+    .search-form-dropdown {
+        position: fixed; /* Reste visible même en scrollant */
+        top: 60px; /* Commence juste en dessous de la navbar. Ajustez cette valeur si votre navbar a une hauteur différente */
+        left: 0;
+        width: 100%;
+        background-color: #007bff; /* Même couleur que la navbar */
+        padding: 10px 0; /* Padding vertical pour le contenu */
+        z-index: 1029; /* Juste en dessous de la navbar (1030) */
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3); /* Ombre pour le distinguer */
+
+        /* Animation de glissement vers le bas */
+        transform: translateY(-100%); /* Masqué par défaut vers le haut */
+        opacity: 0; /* Complètement transparent au début */
+        visibility: hidden; /* Assure qu'il n'est pas interactif quand il est masqué */
+        transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0s 0.3s; /* Transition fluide */
+    }
+
+    .search-form-dropdown.show {
+        transform: translateY(0); /* Apparaît en glissant vers le bas */
+        opacity: 1; /* Devient opaque */
+        visibility: visible; /* Devient interactif */
+        transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0s; /* Délai retiré */
+    }
+
+    /* Centrer le contenu à l'intérieur du formulaire de recherche */
+    .search-form-dropdown .container-fluid {
+        justify-content: center; /* Centre les éléments horizontalement */
+    }
+
+
+    /* Le menu déplié */
+    .navbar-collapse {
+        background-color: #007bff;
+        padding-bottom: 10px;
+        box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        position: fixed; /* Change de absolute à fixed pour qu'il reste dans la vue */
+        top: 60px; /* Commence sous la navbar (ajustez si besoin) */
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: calc(100vh - 60px); /* Prend le reste de la hauteur de l'écran */
+        overflow-y: auto; /* Permet le défilement si le contenu est trop long */
+        z-index: 1020;
+    }
+
+
+    /* Styles généraux pour les nav-items dans le menu déplié */
+    .navbar-nav .nav-item {
+        margin-top: 5px;
+        margin-bottom: 5px;
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    /* Ajustement de la taille et centrage des éléments */
+    .navbar-nav .nav-item button,
+    .navbar-nav .nav-item .toggle-switch {
+        width: 80%;
+        max-width: 250px;
+        margin: 0 auto;
+        display: block;
+    }
+
+    /* Le nom d'utilisateur pourrait être affiché dans le menu déplié ici, si désiré */
+    /* .navbar-nav .nav-item .user-info { display: block; } */
+}

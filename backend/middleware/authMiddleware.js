@@ -56,10 +56,20 @@ const isAdmin = (req, res, next) => {
     }
 };
 
+// Nouveau: Middleware pour autoriser des rôles spécifiques
+const authorizeRoles = (allowedRoles) => {
+    return (req, res, next) => {
+        // Vérifie si l'utilisateur est authentifié et si son rôle est inclus dans les rôles autorisés
+        if (!req.user || !allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({ message: 'Accès refusé. Rôle insuffisant.' });
+        }
+        next();
+    };
+};
+
 // Exporter les middlewares pour pouvoir les utiliser ailleurs
 module.exports = {
     authenticateJWT,
-    isAdmin
-    // Vous pourriez ajouter d'autres middlewares de rôle ici (ex: isStandard, isCadre, isEleve, isResponsibleFor...)
-    // Ces middlewares plus spécifiques seront utiles pour les permissions fines.
+    isAdmin,
+    authorizeRoles // <-- AJOUTEZ CECI ici pour l'exporter !
 };

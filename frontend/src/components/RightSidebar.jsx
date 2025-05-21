@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext'; // Importez le hook useAuth
+import React, { useEffect, useState, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import './RightSidebar.css'; // Importez votre fichier CSS
 
 function RightSidebar() {
     const { token, user } = useAuth();
@@ -18,11 +19,31 @@ function RightSidebar() {
     const [isLoadingDetails, setIsLoadingDetails] = useState(false);
     const [detailsError, setDetailsError] = useState(null);
 
-    // New state for sidebar visibility on small screens
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    // New state for sidebar visibility
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Commence fermé par défaut
+    const [isMobile, setIsMobile] = useState(false); // État pour détecter les écrans mobiles
+
+    const sidebarRef = useRef(null);
+    const toggleButtonRef = useRef(null);
 
     const API_BASE_URL = 'http://localhost:3000';
     const API_STATUS_URL = `${API_BASE_URL}/api/status/daily-updates`;
+
+    // Gestion des clics en dehors de la sidebar
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (isSidebarOpen &&
+                !sidebarRef.current.contains(event.target) &&
+                (!toggleButtonRef.current || !toggleButtonRef.current.contains(event.target))) {
+                setIsSidebarOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isSidebarOpen]);
 
     const formatUpdateDateTime = (timestamp) => {
         if (!timestamp) return 'Non disponible';
@@ -147,7 +168,19 @@ function RightSidebar() {
         setDetailsError(null);
     };
 
-    // Toggle sidebar visibility
+    // --- Fonctions de gestion de la visibilité du sidebar ---
+    const handleMouseEnter = () => {
+        if (!isMobile) { // Ouvre au survol seulement sur les grands écrans
+            setIsSidebarOpen(true);
+        }
+    };
+
+    const handleMouseLeave = () => {
+        if (!isMobile) { // Ferme à la sortie du survol seulement sur les grands écrans
+            setIsSidebarOpen(false);
+        }
+    };
+
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
@@ -157,17 +190,19 @@ function RightSidebar() {
 
         const intervalId = setInterval(fetchUserStatuses, 30000);
 
-        // Add an event listener for window resize to control sidebar visibility
         const handleResize = () => {
-            if (window.innerWidth <= 768) { // Example breakpoint for small screens
-                setIsSidebarOpen(false); // Hide sidebar on small screens initially
+            // Définissez votre breakpoint pour mobile, par exemple 768px
+            if (window.innerWidth <= 768) {
+                setIsMobile(true);
+                setIsSidebarOpen(false); // Cacher par défaut sur mobile
             } else {
-                setIsSidebarOpen(true); // Show sidebar on larger screens
+                setIsMobile(false);
+                setIsSidebarOpen(false); // Caché par défaut sur desktop aussi, s'ouvre au survol
             }
         };
 
         window.addEventListener('resize', handleResize);
-        handleResize(); // Call once on mount to set initial state
+        handleResize(); // Appeler une fois au montage pour définir l'état initial
 
         return () => {
             clearInterval(intervalId);
@@ -177,115 +212,125 @@ function RightSidebar() {
 
     return (
         <>
-            {/* Button to toggle sidebar on small screens */}
-            <button
-                className="btn btn-primary d-md-none position-fixed bottom-0 end-0 m-3 z-index-1000"
-                onClick={toggleSidebar}
-                style={{zIndex: 1000}} // Ensure the button is above other content
+            {/* Bouton de bascule pour mobile, visible uniquement sur les petits écrans */}
+            {isMobile && (
+                <button
+                    ref={toggleButtonRef}
+                    className="btn btn-primary position-fixed bottom-0 end-0 m-3 sidebar-toggle-button"
+                    onClick={toggleSidebar}
+                    style={{zIndex: 1000}}
+                >
+                    {isSidebarOpen ? <i className="bi bi-x-lg"></i> : <i className="bi bi-list"></i>} Statut
+                </button>
+            )}
+
+            <div
+                ref={sidebarRef}
+                className={`d-flex flex-column flex-shrink-0 p-3 bg-light right-sidebar-custom overflow-y-auto ${isSidebarOpen ? 'open' : ''}`}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
             >
-                {isSidebarOpen ? <i className="bi bi-x-lg"></i> : <i className="bi bi-list"></i>} Statut
-            </button>
+                <div className="sidebar-content"> {/* Nouveau conteneur pour le contenu interne */}
+                    <h5 className="text-center mb-3">Statut des Mises à Jour</h5>
+                    <hr />
 
-            <div className={`d-flex flex-column flex-shrink-0 p-3 bg-light right-sidebar-custom overflow-y-auto ${isSidebarOpen ? 'open' : 'closed'}`}>
-                <h5 className="text-center mb-3">Statut des Mises à Jour</h5>
-                <hr />
-
-                {isLoading && !error && (
-                    <div className="text-center">
-                        <div className="spinner-border text-primary" role="status">
-                            <span className="visually-hidden">Chargement...</span>
+                    {isLoading && !error && (
+                        <div className="text-center">
+                            <div className="spinner-border text-primary" role="status">
+                                <span className="visually-hidden">Chargement...</span>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {error && (
-                    <div className="alert alert-danger text-center">
-                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                        {error}
-                    </div>
-                )}
+                    {error && (
+                        <div className="alert alert-danger text-center">
+                            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                            {error}
+                        </div>
+                    )}
 
-                {!isLoading && !error && (
-                    <>
-                        <div className="mb-4">
-                            <h6>
-                                <span className="badge bg-success me-2">
-                                    {userStatuses.completed.length}
-                                </span>
-                                Terminés
-                            </h6>
+                    {!isLoading && !error && (
+                        <>
+                            <div className="mb-4">
+                                <h6>
+                                    <span className="badge bg-success me-2">
+                                        {userStatuses.completed.length}
+                                    </span>
+                                    Terminés
+                                </h6>
 
-                            {userStatuses.completed.length > 0 ? (
-                                <ul className="list-unstyled">
-                                    {userStatuses.completed.map(user => (
-                                        <li
-                                            key={user.id}
-                                            className={`d-flex justify-content-between align-items-center py-2 px-3 mb-2 bg-white rounded ${isAdmin ? 'clickable-item' : ''}`}
-                                            onClick={isAdmin ? () => handleCompletedUserClick(user) : undefined}
-                                            style={!isAdmin ? { cursor: 'default' } : {}}
-                                        >
-                                            <div>
-                                                <i className="bi bi-check-circle-fill text-success me-2"></i>
+                                {userStatuses.completed.length > 0 ? (
+                                    <ul className="list-unstyled">
+                                        {userStatuses.completed.map(user => (
+                                            <li
+                                                key={user.id}
+                                                className={`d-flex justify-content-between align-items-center py-2 px-3 mb-2 bg-white rounded ${isAdmin ? 'clickable-item' : ''}`}
+                                                onClick={isAdmin ? () => handleCompletedUserClick(user) : undefined}
+                                                style={!isAdmin ? { cursor: 'default' } : {}}
+                                            >
+                                                <div>
+                                                    <i className="bi bi-check-circle-fill text-success me-2"></i>
+                                                    <span>{user.username}</span>
+                                                </div>
+                                                {isAdmin && user.dailySubmissionCount > 1 && (
+                                                    <div className="text-end">
+                                                        <small className="text-muted d-block">
+                                                            {formatUpdateDateTime(user.updatedAt)}
+                                                        </small>
+                                                        <span
+                                                            className="badge bg-primary rounded-pill ms-2"
+                                                            title={`${user.dailySubmissionCount} soumissions`}
+                                                        >
+                                                            +{user.dailySubmissionCount - 1}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {!isAdmin && (
+                                                    <div className="text-end">
+                                                        <small className="text-muted d-block">
+                                                            {formatUpdateDateTime(user.updatedAt)}
+                                                        </small>
+                                                    </div>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="alert alert-info mb-0">
+                                        Aucune mise à jour terminée
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <h6>
+                                    <span className="badge bg-warning text-dark me-2">
+                                        {userStatuses.pending.length}
+                                    </span>
+                                    En attente
+                                </h6>
+
+                                {userStatuses.pending.length > 0 ? (
+                                    <ul className="list-unstyled">
+                                        {userStatuses.pending.map(user => (
+                                            <li
+                                                key={user.id}
+                                                className="d-flex align-items-center py-2 px-3 mb-2 bg-white rounded"
+                                            >
+                                                <i className="bi bi-exclamation-circle-fill text-warning me-2"></i>
                                                 <span>{user.username}</span>
-                                            </div>
-                                            {isAdmin && user.dailySubmissionCount > 1 && (
-                                                <div className="text-end">
-                                                    <small className="text-muted d-block">
-                                                        {formatUpdateDateTime(user.updatedAt)}
-                                                    </small>
-                                                    <span
-                                                        className="badge bg-primary rounded-pill ms-2"
-                                                        title={`${user.dailySubmissionCount} soumissions`}
-                                                    >
-                                                        +{user.dailySubmissionCount - 1}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {!isAdmin && (
-                                                <div className="text-end">
-                                                    <small className="text-muted d-block">
-                                                        {formatUpdateDateTime(user.updatedAt)}
-                                                    </small>
-                                                </div>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="alert alert-info mb-0">
-                                    Aucune mise à jour terminée
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <h6>
-                                <span className="badge bg-warning text-dark me-2">
-                                    {userStatuses.pending.length}
-                                </span>
-                                En attente
-                            </h6>
-
-                            {userStatuses.pending.length > 0 ? (
-                                <ul className="list-unstyled">
-                                    {userStatuses.pending.map(user => (
-                                        <li
-                                            key={user.id}
-                                            className="d-flex align-items-center py-2 px-3 mb-2 bg-white rounded"
-                                        >
-                                            <i className="bi bi-exclamation-circle-fill text-warning me-2"></i>
-                                            <span>{user.username}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="alert alert-success mb-0">
-                                    Toutes les mises à jour sont terminées
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="alert alert-success mb-0">
+                                        Toutes les mises à jour sont terminées
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
 
                 {showDetailsModal && (
                     <div

@@ -1,19 +1,18 @@
-// src/pages/ListCadresPage.jsx
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'; // Ajoutez useRef ici
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Modal, Button, Form, Pagination, Table } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
-
 import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // Hiérarchie des grades en ordre décroissant
 const GRADE_HIERARCHY = [
-    'COL', 'LCL', 'CEN', 'MDCT', 'CNE', 
-    'LTN', 'DLTN', 'MLTN', 'GPCE', 'GPHC', 
+    'COL', 'LCL', 'CEN', 'MDCT', 'CNE',
+    'LTN', 'DLTN', 'MLTN', 'GPCE', 'GPHC',
     'GP1C', 'GP2C', 'GHC', 'G1C', 'G2C', 'GST'
 ];
 
@@ -34,9 +33,9 @@ function ListCadresPage() {
     const [cadres, setCadres] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [filterEntite, setFilterEntite] = useState('');
+    const [filterResponsibilityScope, setFilterResponsibilityScope] = useState('');
     const [filterService, setFilterService] = useState('');
-    const [filterCoursId, setFilterCoursId] = useState('');
+    const [filterEscadronId, setFilterEscadronId] = useState('');
     const [allServices, setAllServices] = useState([]);
     const [servicesLoading, setServicesLoading] = useState(false);
     const [servicesError, setServicesError] = useState(null);
@@ -51,29 +50,22 @@ function ListCadresPage() {
     const [cadreToDetail, setCadreToDetail] = useState(null);
     const detailModalBodyRef = useRef(null);
 
-
-    const handleDetail = (cadre) => {
-    setCadreToDetail(cadre);
-    setShowDetailModal(true);};
-
     // Fonction de tri des grades selon la hiérarchie puis par matricule croissant
     const sortByGradeAndMatricule = useCallback((data) => {
         return [...data].sort((a, b) => {
             const gradeA = a.grade?.toUpperCase() || '';
             const gradeB = b.grade?.toUpperCase() || '';
-            
+
             const indexA = GRADE_HIERARCHY.indexOf(gradeA);
             const indexB = GRADE_HIERARCHY.indexOf(gradeB);
-            
-            // Si les grades sont différents, tri selon la hiérarchie
+
             if (indexA !== indexB) {
                 if (indexA !== -1 && indexB !== -1) return indexA - indexB;
                 if (indexA !== -1) return -1;
                 if (indexB !== -1) return 1;
                 return gradeA.localeCompare(gradeB);
             }
-            
-            // Pour les mêmes grades, tri par matricule croissant
+
             const matriculeA = parseInt(a.matricule) || 0;
             const matriculeB = parseInt(b.matricule) || 0;
             return matriculeA - matriculeB;
@@ -94,11 +86,14 @@ function ListCadresPage() {
 
             try {
                 const queryParams = new URLSearchParams();
-                if (filterEntite) queryParams.append('entite', filterEntite);
-                if (filterEntite === 'Service' && filterService) queryParams.append('service', filterService);
-                if (filterEntite === 'Escadron' && filterCoursId) queryParams.append('cours', filterCoursId);
+                if (filterResponsibilityScope) queryParams.append('responsibility_scope', filterResponsibilityScope);
+                if (filterService) queryParams.append('service', filterService);
+                if (filterEscadronId) queryParams.append('responsible_escadron_id', filterEscadronId);
 
-                const response = await fetch(`${API_BASE_URL}/cadres?${queryParams.toString()}`, {
+                const url = `${API_BASE_URL}/api/cadres?${queryParams.toString()}`;
+                console.log("Fetching cadres from URL:", url);
+
+                const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -121,7 +116,7 @@ function ListCadresPage() {
             }
         };
         fetchCadres();
-    }, [token, filterEntite, filterService, filterCoursId, sortByGradeAndMatricule]);
+    }, [token, filterResponsibilityScope, filterService, filterEscadronId, sortByGradeAndMatricule]);
 
     // Chargement des services
     useEffect(() => {
@@ -129,7 +124,7 @@ function ListCadresPage() {
             if (!token) return;
             setServicesLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/cadres?entite=Service`, {
+                const response = await fetch(`${API_BASE_URL}/api/cadres?responsibility_scope=Service`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -165,23 +160,25 @@ function ListCadresPage() {
         try {
             const doc = new jsPDF('landscape');
             doc.setFontSize(16);
-            doc.text(`Liste des cadres (${filterEntite || 'Tous'})`, 105, 15, { align: 'center' });
+            doc.text(`Liste des cadres (${filterResponsibilityScope || 'Tous'})`, 105, 15, { align: 'center' });
 
-            doc.autoTable({startY: 25,
-                            head: [['#', 'Grade', 'Nom', 'Prénom', 'Matricule', 'Téléphone', 'Service']],
-    body: cadres.map((cadre, index) => [
-        index + 1,
-        cadre.grade || '-',
-        cadre.nom || '-',
-        cadre.prenom || '-',
-        cadre.matricule || '-',
-        cadre.numero_telephone || '-',
-        cadre.service || '-'
-    ]),
-    margin: { top: 20 },
-    styles: { fontSize: 10 },
-    headStyles: { fillColor: [41, 128, 185] }
-});
+            doc.autoTable({
+                startY: 25,
+                head: [['#', 'Grade', 'Nom', 'Prénom', 'Matricule', 'Téléphone', 'Service', 'Escadron']],
+                body: cadres.map((cadre, index) => [
+                    index + 1,
+                    cadre.grade || '-',
+                    cadre.nom || '-',
+                    cadre.prenom || '-',
+                    cadre.matricule || '-',
+                    cadre.numero_telephone || '-',
+                    cadre.service || '-',
+                    cadre.EscadronResponsable?.nom || '-'
+                ]),
+                margin: { top: 20 },
+                styles: { fontSize: 10 },
+                headStyles: { fillColor: [41, 128, 185] }
+            });
 
             doc.save(`liste_cadres_${new Date().toISOString().slice(0,10)}.pdf`);
             await swal.close();
@@ -189,15 +186,22 @@ function ListCadresPage() {
             console.error("Erreur génération PDF:", error);
             Swal.fire("Erreur", "Échec de la génération du PDF", "error");
         }
-    }, [cadres, filterEntite]);
+    }, [cadres, filterResponsibilityScope]);
 
     // Gestion pagination
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentCadres = useMemo(() => cadres.slice(indexOfFirstItem, indexOfLastItem), 
-        [cadres, indexOfFirstItem, indexOfLastItem]);
-    const totalPages = useMemo(() => Math.ceil(cadres.length / itemsPerPage), 
-        [cadres.length, itemsPerPage]);
+    const paginationData = useMemo(() => {
+        const totalItems = cadres.length;
+        const indexOfLastItem = currentPage * itemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
+        return {
+            currentItems: cadres.slice(indexOfFirstItem, indexOfLastItem),
+            totalPages: Math.ceil(totalItems / itemsPerPage),
+            indexOfFirstItem,
+            indexOfLastItem,
+            totalItems
+        };
+    }, [cadres, currentPage, itemsPerPage]);
 
     // Fonction d'édition
     const handleEdit = (cadre) => {
@@ -209,9 +213,9 @@ function ListCadresPage() {
             matricule: cadre.matricule || '',
             grade: cadre.grade || '',
             fonction: cadre.fonction || '',
-            entite: cadre.entite || '',
+            responsibility_scope: cadre.responsibility_scope || 'None',
             service: cadre.service || '',
-            cours: cadre.entite === 'Escadron' ? (cadre.EscadronResponsable?.id || cadre.cours || null) : null,
+            responsible_escadron_id: cadre.responsible_escadron_id || null,
             sexe: cadre.sexe || '',
             numero_telephone: cadre.numero_telephone || ''
         });
@@ -250,69 +254,69 @@ function ListCadresPage() {
             }
         }
     };
+
+    const handleDetail = (cadre) => {
+        setCadreToDetail(cadre);
+        setShowDetailModal(true);
+    };
+
     const handlePrintDetail = useCallback(async () => {
-    const input = detailModalBodyRef.current; // L'élément DOM à capturer
-    if (!input || !cadreToDetail) {
-        Swal.fire("Erreur", "Contenu à imprimer non disponible.", "error");
-        return;
-    }
-
-     const swal = Swal.fire({
-        title: 'Génération PDF Fiche',
-        text: 'Préparation du document...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-
-    try {
-        // Utilisez html2canvas pour capturer le contenu
-        const canvas = await html2canvas(input, {
-            scale: 2, // Augmente la résolution pour une meilleure qualité
-            useCORS: true, // Important si vous avez des images externes (comme une photo)
-            windowWidth: input.scrollWidth, // Capture la largeur totale si le contenu dépasse
-            windowHeight: input.scrollHeight // Capture la hauteur totale
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4'); // Format A4, portrait
-
-        const imgWidth = 210; // Largeur A4 en mm
-        const pageHeight = 297; // Hauteur A4 en mm
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
-
-        // Ajoute l'image au PDF, en gérant les pages si le contenu est long
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+        const input = detailModalBodyRef.current;
+        if (!input || !cadreToDetail) {
+            Swal.fire("Erreur", "Contenu à imprimer non disponible.", "error");
+            return;
         }
 
-        // Nom du fichier PDF
-        const fileName = `fiche_cadre_${cadreToDetail.nom?.toUpperCase() || ''}_${cadreToDetail.prenom || ''}_${new Date().toISOString().slice(0,10)}.pdf`;
+        const swal = Swal.fire({
+            title: 'Génération PDF Fiche',
+            text: 'Préparation du document...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
 
-        pdf.save(fileName);
+        try {
+            const canvas = await html2canvas(input, {
+                scale: 2,
+                useCORS: true,
+                windowWidth: input.scrollWidth,
+                windowHeight: input.scrollHeight
+            });
 
-        await swal.close();
-        Swal.fire("Succès", "Fiche PDF générée avec succès.", "success");
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
 
-    } catch (error) {
-        console.error("Erreur génération PDF fiche:", error);
-        await swal.close();
-        Swal.fire("Erreur", "Échec de la génération du PDF de la fiche.", "error");
-    }
-}, [cadreToDetail]); // Recalculer si cadreToDetail change
-    
+            const imgWidth = 210;
+            const pageHeight = 297;
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            const fileName = `fiche_cadre_${cadreToDetail.nom?.toUpperCase() || ''}_${cadreToDetail.prenom || ''}_${new Date().toISOString().slice(0,10)}.pdf`;
+            pdf.save(fileName);
+
+            await swal.close();
+            Swal.fire("Succès", "Fiche PDF générée avec succès.", "success");
+        } catch (error) {
+            console.error("Erreur génération PDF fiche:", error);
+            await swal.close();
+            Swal.fire("Erreur", "Échec de la génération du PDF de la fiche.", "error");
+        }
+    }, [cadreToDetail]);
+
     return (
         <div className="main-content-container">
             <style>{printStyles}</style>
-            <div className="container-fluid mt-4" >
+            <div className="container-fluid mt-4">
                 <h1 className="mb-4">Liste des Cadres</h1>
 
                 {/* Filtres */}
@@ -322,23 +326,23 @@ function ListCadresPage() {
                         <div className="row g-3">
                             <div className="col-md-4">
                                 <Form.Group>
-                                    <Form.Label>Entité</Form.Label>
-                                    <Form.Select 
-                                        value={filterEntite}
+                                    <Form.Label>Scope de responsabilité</Form.Label>
+                                    <Form.Select
+                                        value={filterResponsibilityScope}
                                         onChange={(e) => {
-                                            setFilterEntite(e.target.value);
+                                            setFilterResponsibilityScope(e.target.value);
                                             setFilterService('');
-                                            setFilterCoursId('');
+                                            setFilterEscadronId('');
                                         }}
                                     >
-                                        <option value="">Toutes les entités</option>
+                                        <option value="">Tous</option>
                                         <option value="Service">Service</option>
                                         <option value="Escadron">Escadron</option>
                                     </Form.Select>
                                 </Form.Group>
                             </div>
 
-                            {filterEntite === 'Service' && (
+                            {filterResponsibilityScope === 'Service' && (
                                 <div className="col-md-4">
                                     <Form.Group>
                                         <Form.Label>Service</Form.Label>
@@ -359,14 +363,14 @@ function ListCadresPage() {
                                 </div>
                             )}
 
-                            {filterEntite === 'Escadron' && (
+                            {filterResponsibilityScope === 'Escadron' && (
                                 <div className="col-md-4">
                                     <Form.Group>
                                         <Form.Label>ID Escadron</Form.Label>
                                         <Form.Control
                                             type="number"
-                                            value={filterCoursId}
-                                            onChange={(e) => setFilterCoursId(e.target.value)}
+                                            value={filterEscadronId}
+                                            onChange={(e) => setFilterEscadronId(e.target.value)}
                                         />
                                     </Form.Group>
                                 </div>
@@ -403,51 +407,45 @@ function ListCadresPage() {
                                         <th>Nom</th>
                                         <th>Prénom</th>
                                         <th>Matricule</th>
-
-                                        <th>Entité</th>
+                                        <th>Scope</th>
                                         <th>Service</th>
-                                       
                                         <th>Escadron</th>
-                                        
                                         <th>Téléphone</th>
                                         <th className="no-print">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentCadres.map((cadre, index) => (
+                                    {paginationData.currentItems.map((cadre, index) => (
                                         <tr key={cadre.id || index}>
                                             <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
                                             <td>{cadre.grade || '-'}</td>
                                             <td>{cadre.nom || '-'}</td>
                                             <td>{cadre.prenom || '-'}</td>
                                             <td>{cadre.matricule || '-'}</td>
-                                            
-                                            <td>{cadre.entite || '-'}</td>
+                                            <td>{cadre.responsibility_scope || '-'}</td>
                                             <td>{cadre.service || '-'}</td>
-                                            
-                                            <td>{cadre.EscadronResponsable?.nom || cadre.cours || '-'}</td>
-                                            
+                                            <td>{cadre.EscadronResponsable?.nom || '-'}</td>
                                             <td>{cadre.numero_telephone || '-'}</td>
                                             <td className="no-print">
-                                                <Button 
-                                                    variant="warning" 
-                                                    size="sm" 
+                                                <Button
+                                                    variant="warning"
+                                                    size="sm"
                                                     onClick={() => handleEdit(cadre)}
                                                     className="me-2"
                                                 >
                                                     Modifier
                                                 </Button>
                                                 <Button
-                                                    variant="info" // Ou une autre couleur de votre choix
-                                                    size="sm"
-                                                    onClick={() => handleDetail(cadre)} // Appel de la nouvelle fonction
-                                                    className="me-2" // Marge à droite
-                                                >
-                                                    Détail
-                                                </Button>
-                                                <Button 
-                                                    variant="danger" 
-                                                    size="sm" 
+                                                    variant="info"
+                                                    size="sm"
+                                                    onClick={() => handleDetail(cadre)}
+                                                    className="me-2"
+                                                >
+                                                    Détail
+                                                </Button>
+                                                <Button
+                                                    variant="danger"
+                                                    size="sm"
                                                     onClick={() => handleDelete(cadre.id)}
                                                 >
                                                     Supprimer
@@ -460,27 +458,27 @@ function ListCadresPage() {
                         </div>
 
                         {/* Pagination */}
-                        {totalPages > 1 && (
+                        {paginationData.totalPages > 1 && (
                             <div className="d-flex justify-content-between align-items-center mt-3 no-print">
                                 <div>
-                                    Affichage de {indexOfFirstItem + 1} à {Math.min(indexOfLastItem, cadres.length)} sur {cadres.length} cadres
+                                    Affichage de {paginationData.indexOfFirstItem + 1} à {Math.min(paginationData.indexOfLastItem, paginationData.totalItems)} sur {paginationData.totalItems} cadres
                                 </div>
                                 <Pagination>
                                     <Pagination.First onClick={() => setCurrentPage(1)} disabled={currentPage === 1} />
                                     <Pagination.Prev onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} />
-                                    {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                                    {Array.from({length: Math.min(5, paginationData.totalPages)}, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5) {
+                                        if (paginationData.totalPages <= 5) {
                                             pageNum = i + 1;
                                         } else if (currentPage <= 3) {
                                             pageNum = i + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + i;
+                                        } else if (currentPage >= paginationData.totalPages - 2) {
+                                            pageNum = paginationData.totalPages - 4 + i;
                                         } else {
                                             pageNum = currentPage - 2 + i;
                                         }
                                         return (
-                                            <Pagination.Item 
+                                            <Pagination.Item
                                                 key={pageNum}
                                                 active={pageNum === currentPage}
                                                 onClick={() => setCurrentPage(pageNum)}
@@ -489,8 +487,8 @@ function ListCadresPage() {
                                             </Pagination.Item>
                                         );
                                     })}
-                                    <Pagination.Next onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} />
-                                    <Pagination.Last onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} />
+                                    <Pagination.Next onClick={() => setCurrentPage(p => Math.min(paginationData.totalPages, p + 1))} disabled={currentPage === paginationData.totalPages} />
+                                    <Pagination.Last onClick={() => setCurrentPage(paginationData.totalPages)} disabled={currentPage === paginationData.totalPages} />
                                 </Pagination>
                             </div>
                         )}
@@ -511,8 +509,8 @@ function ListCadresPage() {
                         <Form>
                             <Form.Group className="mb-3">
                                 <Form.Label>Nom</Form.Label>
-                                <Form.Control 
-                                    type="text" 
+                                <Form.Control
+                                    type="text"
                                     name="nom"
                                     value={editFormData.nom}
                                     onChange={(e) => setEditFormData({...editFormData, nom: e.target.value})}
@@ -520,8 +518,8 @@ function ListCadresPage() {
                             </Form.Group>
                             <Form.Group className="mb-3">
                                 <Form.Label>Prénom</Form.Label>
-                                <Form.Control 
-                                    type="text" 
+                                <Form.Control
+                                    type="text"
                                     name="prenom"
                                     value={editFormData.prenom}
                                     onChange={(e) => setEditFormData({...editFormData, prenom: e.target.value})}
@@ -529,8 +527,8 @@ function ListCadresPage() {
                             </Form.Group>
                             <Form.Group className="mb-3">
                                 <Form.Label>Matricule</Form.Label>
-                                <Form.Control 
-                                    type="text" 
+                                <Form.Control
+                                    type="text"
                                     name="matricule"
                                     value={editFormData.matricule}
                                     onChange={(e) => setEditFormData({...editFormData, matricule: e.target.value})}
@@ -538,8 +536,8 @@ function ListCadresPage() {
                             </Form.Group>
                             <Form.Group className="mb-3">
                                 <Form.Label>Grade</Form.Label>
-                                <Form.Control 
-                                    type="text" 
+                                <Form.Control
+                                    type="text"
                                     name="grade"
                                     value={editFormData.grade}
                                     onChange={(e) => setEditFormData({...editFormData, grade: e.target.value})}
@@ -547,26 +545,26 @@ function ListCadresPage() {
                             </Form.Group>
                             <Form.Group className="mb-3">
                                 <Form.Label>Fonction</Form.Label>
-                                <Form.Control 
-                                    type="text" 
+                                <Form.Control
+                                    type="text"
                                     name="fonction"
                                     value={editFormData.fonction}
                                     onChange={(e) => setEditFormData({...editFormData, fonction: e.target.value})}
                                 />
                             </Form.Group>
                             <Form.Group className="mb-3">
-                                <Form.Label>Entité</Form.Label>
+                                <Form.Label>Scope de responsabilité</Form.Label>
                                 <Form.Select
-                                    name="entite"
-                                    value={editFormData.entite}
-                                    onChange={(e) => setEditFormData({...editFormData, entite: e.target.value})}
+                                    name="responsibility_scope"
+                                    value={editFormData.responsibility_scope}
+                                    onChange={(e) => setEditFormData({...editFormData, responsibility_scope: e.target.value})}
                                 >
-                                    <option value="">Sélectionner</option>
+                                    <option value="None">Aucun</option>
                                     <option value="Service">Service</option>
                                     <option value="Escadron">Escadron</option>
                                 </Form.Select>
                             </Form.Group>
-                            {editFormData.entite === 'Service' && (
+                            {editFormData.responsibility_scope === 'Service' && (
                                 <Form.Group className="mb-3">
                                     <Form.Label>Service</Form.Label>
                                     <Form.Select
@@ -581,14 +579,20 @@ function ListCadresPage() {
                                     </Form.Select>
                                 </Form.Group>
                             )}
-                            {editFormData.entite === 'Escadron' && (
+                            {editFormData.responsibility_scope === 'Escadron' && (
                                 <Form.Group className="mb-3">
                                     <Form.Label>ID Escadron</Form.Label>
                                     <Form.Control
                                         type="number"
-                                        name="cours"
-                                        value={editFormData.cours}
-                                        onChange={(e) => {const value = e.target.value;setEditFormData({...editFormData, cours: e.target.value === '' ? null : parseInt(value)})}}
+                                        name="responsible_escadron_id"
+                                        value={editFormData.responsible_escadron_id || ''}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setEditFormData({
+                                                ...editFormData,
+                                                responsible_escadron_id: value === '' ? null : (isNaN(parseInt(value)) ? value : parseInt(value))
+                                            })
+                                        }}
                                     />
                                 </Form.Group>
                             )}
@@ -614,46 +618,42 @@ function ListCadresPage() {
                                 />
                             </Form.Group>
                             <div className="d-flex justify-content-end">
-                                <Button 
-                                    variant="primary" 
+                                <Button
+                                    variant="primary"
                                     onClick={async () => {
                                         try {
                                             setEditLoading(true);
+                                            setEditError(null);
+
                                             console.log("Données envoyées au backend:", editFormData);
-                                           const response = await fetch(`${API_BASE_URL}/cadres/${editFormData.id}`, {
-                                                method: 'PUT',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    'Authorization': `Bearer ${token}`
-                                                },
-                                                body: JSON.stringify(editFormData)
-                                            });
+                                            const response = await fetch(`${API_BASE_URL}/cadres/${editFormData.id}`, {
+                                                method: 'PUT',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'Authorization': `Bearer ${token}`
+                                                },
+                                                body: JSON.stringify(editFormData)
+                                            });
 
-                                            // Gérer les erreurs de réponse
-                                            if (!response.ok) {
-                                                const errorData = await response.json().catch(() => ({ message: `Erreur HTTP: ${response.status}` }));
-                                                throw new Error(errorData.message || `Échec de la mise à jour (${response.status})`);
-                                            }
+                                            if (!response.ok) {
+                                                const errorData = await response.json().catch(() => ({ message: `Erreur HTTP: ${response.status}` }));
+                                                throw new Error(errorData.message || `Échec de la mise à jour (${response.status})`);
+                                            }
 
-                                            // --- MODIFICATION ICI ---
-                                            const responseData = await response.json(); // Récupère TOUT le corps de la réponse
-                                            // Extrait l'objet cadre qui se trouve sous la clé 'cadre'
-                                            const updatedCadre = responseData.cadre; 
-                                            // --- FIN DE LA MODIFICATION ---
+                                            const responseData = await response.json();
+                                            const updatedCadre = responseData.cadre;
 
-                                            // Utilise l'objet updatedCadre extrait pour mettre à jour l'état
-                                            setCadres(cadres.map(c => c.id === updatedCadre.id ? updatedCadre : c));
-                                            setShowEditModal(false);
-                                            Swal.fire('Succès!', 'Cadre mis à jour', 'success');
-
-                                        } catch (err) {
-                                            // Amélioration : Afficher le message d'erreur du backend si disponible
-                                            setEditError(err.message);
-                                            Swal.fire('Erreur!', err.message, 'error');
-                                        } finally {
-                                            setEditLoading(false);
-                                        }
-                                    }}
+                                            setCadres(cadres.map(c => c.id === updatedCadre.id ? updatedCadre : c));
+                                            setShowEditModal(false);
+                                            Swal.fire('Succès!', 'Cadre mis à jour', 'success');
+                                        } catch (err) {
+                                            console.error("Erreur lors de la mise à jour:", err);
+                                            setEditError(err.message);
+                                            Swal.fire('Erreur!', err.message, 'error');
+                                        } finally {
+                                            setEditLoading(false);
+                                        }
+                                    }}
                                     disabled={editLoading}
                                 >
                                     {editLoading ? 'Enregistrement...' : 'Enregistrer'}
@@ -661,126 +661,100 @@ function ListCadresPage() {
                             </div>
                         </Form>
                     </Modal.Body>
-                    
+                </Modal>
+
+                {/* Modal de Détail */}
+                <Modal show={showDetailModal} onHide={() => setShowDetailModal(false)} size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Fiche Individuelle</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {cadreToDetail ? (
+                            <div ref={detailModalBodyRef} style={{ fontFamily: 'Arial, sans-serif', padding: '15px', lineHeight: '1.6', color: '#333' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
+                                    <div style={{ flexGrow: 1 }}>
+                                        <h2 style={{ margin: '0', fontSize: '28px', fontWeight: 'bold', color: '#000' }}>
+                                            {cadreToDetail.nom?.toUpperCase() || 'NOM'} {cadreToDetail.prenom || 'Prénom'}
+                                        </h2>
+                                        <p style={{ margin: '5px 0 0 0', fontSize: '18px', color: '#555' }}>
+                                            {cadreToDetail.grade || 'Grade non spécifié'} - {cadreToDetail.fonction || 'Fonction non spécifiée'}
+                                        </p>
+                                        <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#777' }}>
+                                            Matricule: {cadreToDetail.matricule || '-'}
+                                        </p>
+                                    </div>
+                                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#eee', marginLeft: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '50px', color: '#777', overflow: 'hidden', flexShrink: 0 }}>
+                                        <i className="bi bi-person-fill"></i>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
+                                    <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Informations</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px 30px' }}>
+                                        <div>
+                                            <p><strong>Date de naissance:</strong> -</p>
+                                            <p><strong>Lieu de naissance:</strong> -</p>
+                                            <p><strong>Sexe:</strong> {cadreToDetail.sexe || '-'}</p>
+                                            <p><strong>Situation:</strong> -</p>
+                                            <p><strong>Nombre d'enfants:</strong> -</p>
+                                        </div>
+                                        <div>
+                                            <p><strong>Scope:</strong> {cadreToDetail.responsibility_scope || '-'}</p>
+                                            {cadreToDetail.responsibility_scope === 'Service' && <p><strong>Service:</strong> {cadreToDetail.service || '-'}</p>}
+                                            {cadreToDetail.responsibility_scope === 'Escadron' && (
+                                                <p><strong>Escadron:</strong> {cadreToDetail.EscadronResponsable?.nom || '-'}</p>
+                                            )}
+                                            <p><strong>CFEG:</strong> -</p>
+                                            <p><strong>Date de séjour à EGNA:</strong> -</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
+                                    <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Contact</h3>
+                                    <p><strong>Numéro de téléphone:</strong> {cadreToDetail.numero_telephone || '-'}</p>
+                                    <p>
+                                        <i className="bi bi-whatsapp me-2" style={{ fontSize: '1.2em', color: '#25D366' }}></i>
+                                        <strong>WhatsApp:</strong> -
+                                    </p>
+                                    <p>
+                                        <i className="bi bi-envelope-fill me-2" style={{ fontSize: '1.2em', color: '#D14836' }}></i>
+                                        <strong>Email:</strong> -
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Historique des Absences</h3>
+                                    {cadreToDetail.statut_absence ? (
+                                        <div>
+                                            <p><strong>Statut Actuel:</strong> {cadreToDetail.statut_absence}</p>
+                                            <p><strong>Date de début:</strong> {cadreToDetail.date_debut_absence ? new Date(cadreToDetail.date_debut_absence).toLocaleDateString('fr-FR') : '-'}</p>
+                                            <p><strong>Motif:</strong> {cadreToDetail.motif_absence || '-'}</p>
+                                            <p style={{ fontStyle: 'italic', color: '#777', marginTop: '10px' }}>
+                                                (Historique complet non disponible dans les données actuelles)
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <p>Aucune absence ou indisponibilité actuelle enregistrée.</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <p>Chargement des détails...</p>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="primary" onClick={handlePrintDetail} className="me-2">
+                            <i className="bi bi-printer me-1"></i> Imprimer
+                        </Button>
+                        <Button variant="secondary" onClick={() => setShowDetailModal(false)}>
+                            Fermer
+                        </Button>
+                    </Modal.Footer>
                 </Modal>
             </div>
-            {/* Modal de Détail - Placez ce bloc de code à la fin du JSX de votre composant ListCadresPage,
-    juste avant la balise fermante de votre conteneur principal (ex: </div> de .main-content-container) */}
-<Modal show={showDetailModal} onHide={() => setShowDetailModal(false)} size="lg">
-    <Modal.Header closeButton>
-        <Modal.Title>Fiche Individuelle </Modal.Title> {/* Titre de la modale */}
-    </Modal.Header>
-    <Modal.Body>
-        {cadreToDetail ? (
-            <div ref={detailModalBodyRef} style={{ fontFamily: 'Arial, sans-serif', padding: '15px', lineHeight: '1.6', color: '#333' }}> {/* Conteneur principal avec styles de base */}
-
-                {/* Section En-tête (Nom, Grade/Fonction, Photo) */}
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
-                    <div style={{ flexGrow: 1 }}>
-                        {/* Nom Complet */}
-                        <h2 style={{ margin: '0', fontSize: '28px', fontWeight: 'bold', color: '#000' }}>
-                            {cadreToDetail.nom?.toUpperCase() || 'NOM'} {cadreToDetail.prenom || 'Prénom'} {/* Nom en majuscules */}
-                        </h2>
-                        {/* Grade et Fonction */}
-                        <p style={{ margin: '5px 0 0 0', fontSize: '18px', color: '#555' }}>
-                            {cadreToDetail.grade || 'Grade non spécifié'} - {cadreToDetail.fonction || 'Fonction non spécifiée'}
-                        </p>
-                        {/* Matricule sous le nom */}
-                         <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#777' }}>
-                            Matricule: {cadreToDetail.matricule || '-'}
-                        </p>
-                    </div>
-                    {/* Placeholder pour la photo */}
-                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#eee', marginLeft: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '50px', color: '#777', overflow: 'hidden', flexShrink: 0 }}>
-                         {/* Si vous avez une URL de photo, utilisez une balise img ici */}
-                         {/* Exemple : <img src={cadreToDetail.photoUrl || 'url_image_par_defaut.png'} alt="Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> */}
-                         <i className="bi bi-person-fill"></i> {/* Icône par défaut (nécessite Bootstrap Icons) */}
-                    </div>
-                </div>
-
-                {/* Section Informations Personnelles et Professionnelles */}
-                 <div style={{ marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
-                     <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Informations</h3>
-
-                     {/* Disposition en 2 colonnes pour les détails */}
-                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px 30px' }}> {/* Adjusted gap */}
-                         <div>
-                            <p><strong>Date de naissance:</strong> {/* PlaceHolder */ '-'}</p> {/* Laissez vide ou mettez un tiret */}
-                            <p><strong>Lieu de naissance:</strong> {/* PlaceHolder */ '-'}</p>
-                            <p><strong>Sexe:</strong> {cadreToDetail.sexe || '-'}</p>
-                             <p><strong>Situation:</strong> {/* PlaceHolder */ '-'}</p> {/* Marié/Célibataire etc. */}
-                            <p><strong>Nombre d'enfants:</strong> {/* PlaceHolder */ '-'}</p>
-                         </div>
-                         <div>
-                             <p><strong>Entité:</strong> {cadreToDetail.entite || '-'}</p>
-                             {/* Afficher Service ou Cours/Escadron en fonction de l'entité */}
-                             {cadreToDetail.entite === 'Service' && <p><strong>Service:</strong> {cadreToDetail.service || '-'}</p>}
-                             {/* Si l'entité est Escadron, afficher "Cours" et l'info de l'escadron */}
-                             {cadreToDetail.entite === 'Escadron' && (
-                                  <p><strong>Cours:</strong> {cadreToDetail.EscadronResponsable?.nom || cadreToDetail.cours || '-'}</p>
-                             )}
-
-                             {/* Champ CFEG */}
-                             <p><strong>CFEG:</strong> {/* PlaceHolder */ '-'}</p> {/* Laissez vide ou mettez un tiret */}
-
-                             <p><strong>Date de séjour à EGNA:</strong> {/* PlaceHolder */ '-'}</p>
-                         </div>
-                     </div>
-                 </div>
-
-                {/* Section Contact */}
-                <div style={{ marginBottom: '25px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
-                    <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Contact</h3>
-                     <p><strong>Numéro de téléphone:</strong> {cadreToDetail.numero_telephone || '-'}</p>
-                     <p>
-                         {/* Logo WhatsApp (exemple avec Bootstrap Icons) */}
-                         {/* Assurez-vous d'avoir les icônes Bootstrap installées et importées */}
-                         <i className="bi bi-whatsapp me-2" style={{ fontSize: '1.2em', color: '#25D366' }}></i>
-                         <strong>WhatsApp:</strong> {/* PlaceHolder ou champ spécifique si différent du numéro principal */ '-' }
-                     </p>
-                     <p>
-                         {/* Logo Gmail (exemple avec Bootstrap Icons) */}
-                         <i className="bi bi-envelope-fill me-2" style={{ fontSize: '1.2em', color: '#D14836' }}></i>
-                         <strong>Email:</strong> {/* PlaceHolder ou champ email */ '-' }
-                     </p>
-                </div>
-
-                {/* Section Historique des Absences (Actuellement juste le statut en cours) */}
-                 <div>
-                     <h3 style={{ fontSize: '20px', marginBottom: '15px', textDecoration: 'underline', color: '#000' }}>Historique des Absences</h3>
-                     {cadreToDetail.statut_absence ? (
-                         <div>
-                             <p><strong>Statut Actuel:</strong> {cadreToDetail.statut_absence}</p>
-                             <p><strong>Date de début:</strong> {cadreToDetail.date_debut_absence ? new Date(cadreToDetail.date_debut_absence).toLocaleDateString('fr-FR') : '-'}</p>
-                             <p><strong>Motif:</strong> {cadreToDetail.motif_absence || '-'}</p>
-                             {/* Pour afficher l'historique complet, il faudrait fetcher ces données séparément */}
-                             <p style={{ fontStyle: 'italic', color: '#777', marginTop: '10px' }}>
-                                 (Historique complet non disponible dans les données actuelles)
-                             </p>
-                         </div>
-                     ) : (
-                         <p>Aucune absence ou indisponibilité actuelle enregistrée.</p>
-                     )}
-                 </div>
-
-
-            </div>
-        ) : (
-            <p>Chargement des détails...</p>
-        )}
-    </Modal.Body>
-    <Modal.Footer>
-        <Button variant="primary" onClick={handlePrintDetail} className="me-2">
-            <i className="bi bi-printer me-1"></i> Imprimer
-        </Button>
-        <Button variant="secondary" onClick={() => setShowDetailModal(false)}>
-            Fermer
-        </Button>
-    </Modal.Footer>
-</Modal>
         </div>
     );
 }
-
 
 export default ListCadresPage;

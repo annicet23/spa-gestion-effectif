@@ -2,13 +2,16 @@
 
 const express = require('express');
 const router = express.Router();
-const { MiseAJour, User, Cadre, Absence, HistoriqueStatsJournalieresCadres } = require('../models');
+const { MiseAJour, User, Cadre, Absence, HistoriqueStatsJournalieresCadres, Eleve } = require('../models'); // Assurez-vous d'ajouter Eleve si vous l'avez
 // Assurez-vous que authenticateJWT et isAdmin sont correctement importés de votre middleware
 const { authenticateJWT, isAdmin } = require('../middleware/authMiddleware');
 const { Op } = require('sequelize');
 // Importez les fonctions de date qui gèrent la "journée historique"
 const { getHistoricalDate, getHistoricalDayStartTime, getHistoricalDayEndTime } = require('../utils/date');
 const miseAJourController = require('../controllers/miseAJourController'); // Assurez-vous que ce fichier existe
+
+// NOUVEAU : Importez la fonction de calcul des statistiques depuis historicalTasks.js
+const { calculateCurrentAggregateStats } = require('../tasks/historicalTasks'); // <-- VÉRIFIEZ CE CHEMIN !
 
 // Middleware d'authentification appliqué à toutes les routes de ce routeur
 router.use(authenticateJWT);
@@ -17,12 +20,7 @@ router.use(authenticateJWT);
 
 // POST /api/mises-a-jour/submit
 router.post('/submit', async (req, res) => {
-    // La date de la mise à jour doit correspondre à la "journée historique"
-    // Vous envoyez `update_date` du frontend.
-    // Il est crucial que cette `update_date` soit au format 'AAAA-MM-JJ' pour être cohérente
-    // avec la logique de `getHistoricalDayStartTime` et `getHistoricalDayEndTime`
-    // qui utilisent `getHistoricalDate`.
-    const { update_date } = req.body; // C'est la date de la journée historique (ex: 2025-05-20)
+    const { update_date } = req.body;
 
     if (!update_date) {
         return res.status(400).json({ message: 'La date de la mise à jour (update_date) est requise.' });
@@ -30,7 +28,8 @@ router.post('/submit', async (req, res) => {
 
     try {
         const userWithCadre = await User.findByPk(req.user.id, {
-            include: [{ model: Cadre, as: 'Cadre', attributes: ['id'] }]
+            // Inclure responsibility_scope et responsible_escadron_id ici
+            include: [{ model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'responsibility_scope', 'responsible_escadron_id'] }]
         });
 
         if (!userWithCadre || !userWithCadre.Cadre) {
@@ -40,24 +39,86 @@ router.post('/submit', async (req, res) => {
 
         const cadreIdSoumetteur = userWithCadre.Cadre.id;
 
-        // Lors de la création, `created_at` sera automatiquement défini par Sequelize.
-        // `update_date` doit rester la "date historique" que vous utilisez pour le regroupement.
         const nouvelleSoumission = await MiseAJour.create({
             submitted_by_id: req.user.id,
-            update_date: update_date, // La date au format 'YYYY-MM-DD'
+            update_date: update_date,
             cadre_id: cadreIdSoumetteur,
-            status: 'Validée', // Par défaut, auto-validée par l'utilisateur
+            status: 'Validée',
             validated_by_id: req.user.id,
-            validation_date: new Date() // La date et l'heure de validation
+            validation_date: new Date()
         });
 
-        // Inclure les détails pour la réponse immédiate
         const soumissionAvecDetails = await MiseAJour.findByPk(nouvelleSoumission.id, {
             include: [
                 { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
-                { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] } // Cadre lié à la mise à jour
+                { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction', 'responsibility_scope', 'responsible_escadron_id'] } // Assurez-vous d'inclure les champs nécessaires ici
             ]
         });
+
+        // Logique de mise à jour des statuts suite à la soumission directe "Validée"
+        if (nouvelleSoumission.status === 'Validée') {
+            const cadreSoumetteur = soumissionAvecDetails.Cadre;
+            const dateMiseAJour = nouvelleSoumission.update_date;
+
+            if (cadreSoumetteur) {
+                const scopeType = cadreSoumetteur.responsibility_scope;
+                let cadresToUpdate = [];
+                let elevesToUpdate = []; // Si vous avez une table Eleve
+
+                if (scopeType === 'Service' && cadreSoumetteur.service) {
+                    cadresToUpdate = await Cadre.findAll({
+                        where: { service: cadreSoumetteur.service },
+                        attributes: ['id']
+                    });
+                } else if (scopeType === 'Escadron' && cadreSoumetteur.responsible_escadron_id) {
+                    // Logique pour les cadres de l'escadron
+                    cadresToUpdate = await Cadre.findAll({
+                        where: { responsible_escadron_id: cadreSoumetteur.responsible_escadron_id },
+                        attributes: ['id']
+                    });
+                    // SI VOUS AVEZ UNE TABLE ELEVE SÉPARÉE, DÉCOMMENTEZ ET AJUSTEZ CELA :
+                    // elevesToUpdate = await Eleve.findAll({
+                    //     where: { escadron_id: cadreSoumetteur.responsible_escadron_id },
+                    //     attributes: ['id']
+                    // });
+                } else {
+                    console.warn(`Cadre soumetteur (ID: ${cadreSoumetteur.id}) a un scope de responsabilité "${scopeType}" invalide ou incomplet pour la soumission ${nouvelleSoumission.id}. Skipping status update.`);
+                }
+
+                if (cadresToUpdate.length > 0) {
+                    await Cadre.update(
+                        {
+                            statut_absence: 'Présent', // Ajustez ce statut selon la signification de la soumission
+                            date_debut_absence: null,
+                            motif_absence: null,
+                            motif_details: null,
+                            timestamp_derniere_maj_statut: new Date()
+                        },
+                        {
+                            where: { id: { [Op.in]: cadresToUpdate.map(c => c.id) } }
+                        }
+                    );
+                    console.log(`Mise à jour des statuts de ${cadresToUpdate.length} cadres pour l'entité ${scopeType} (${cadreSoumetteur.service || cadreSoumetteur.responsible_escadron_id}) à la date ${dateMiseAJour}.`);
+                }
+
+                // SI VOUS AVEZ UNE TABLE ELEVE SÉPARÉE, DÉCOMMENTEZ ET AJUSTEZ CELA :
+                // if (elevesToUpdate.length > 0) {
+                //     await Eleve.update(
+                //         {
+                //             statut_absence: 'Présent', // Ajustez ce statut
+                //             date_debut_absence: null,
+                //             motif_absence: null,
+                //             motif_details: null,
+                //             timestamp_derniere_maj_statut: new Date()
+                //         },
+                //         {
+                //             where: { id: { [Op.in]: elevesToUpdate.map(e => e.id) } }
+                //         }
+                //     );
+                //     console.log(`Mise à jour des statuts de ${elevesToUpdate.length} élèves pour l'escadron ${cadreSoumetteur.responsible_escadron_id} à la date ${dateMiseAJour}.`);
+                // }
+            }
+        }
 
         return res.status(201).json({ message: 'Mise à jour soumise avec succès', soumission: soumissionAvecDetails });
 
@@ -72,7 +133,6 @@ router.post('/submit', async (req, res) => {
 
 // GET /api/mises-a-jour/status-for-cadre
 router.get('/status-for-cadre', async (req, res) => {
-    // Cette route est déjà bien gérée pour les permissions. Pas de changements majeurs nécessaires ici.
     const { date, cadreId } = req.query;
 
     if (!date) {
@@ -105,7 +165,7 @@ router.get('/status-for-cadre', async (req, res) => {
         const submission = await MiseAJour.findOne({
             where: {
                 cadre_id: targetCadreId,
-                update_date: date // `update_date` est utilisé pour la date historique
+                update_date: date
             },
             attributes: ['id', 'status', 'update_date', 'created_at', 'validated_by_id', 'validation_date'],
             include: [
@@ -129,7 +189,6 @@ router.get('/status-for-cadre', async (req, res) => {
 
 // GET /api/mises-a-jour
 router.get('/', async (req, res) => {
-    // Cette route est déjà bien gérée.
     const whereClause = {};
 
     if (req.user.role === 'Standard') {
@@ -195,7 +254,6 @@ router.get('/', async (req, res) => {
 
 // GET /api/mises-a-jour/:id
 router.get('/:id', async (req, res) => {
-    // Cette route est déjà bien gérée.
     const submissionId = req.params.id;
 
     try {
@@ -234,7 +292,6 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/mises-a-jour/:id/validate
 router.post('/:id/validate', isAdmin, async (req, res) => {
-    // Cette route est déjà bien gérée.
     const submissionId = req.params.id;
     const { status } = req.body;
 
@@ -269,6 +326,12 @@ router.post('/:id/validate', isAdmin, async (req, res) => {
 
         if (soumission.status === 'Validée') {
             console.log(`Déclenchement de la mise à jour du statut du cadre/élèves pour la soumission ${soumission.id}.`);
+            // NOTE: Votre logique pour la mise à jour réelle des statuts des cadres/élèves
+            // n'est pas présente ici dans le code fourni pour la validation individuelle.
+            // Assurez-vous que les fonctions nécessaires sont appelées si applicable.
+            // Par exemple, si une validation de soumission individuelle change le statut d'un cadre.
+            // Si la mise à jour du statut d'un cadre est gérée par une autre API ou une autre logique,
+            // alors ce log est juste informatif.
         }
 
         const soumissionValidee = await MiseAJour.findByPk(soumission.id, {
@@ -292,7 +355,6 @@ router.post('/:id/validate', isAdmin, async (req, res) => {
 
 // POST /api/mises-a-jour/validate-batch
 router.post('/validate-batch', isAdmin, async (req, res) => {
-    // Cette route est déjà bien gérée.
     const { submissionIds, status } = req.body;
 
     if (!Array.isArray(submissionIds) || submissionIds.length === 0) {
@@ -318,6 +380,7 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
                         {
                             model: Cadre,
                             as: 'Cadre',
+                            // IMPORTANT: Assurez-vous d'inclure 'responsibility_scope' et 'responsible_escadron_id'
                             attributes: ['id', 'service', 'responsibility_scope', 'responsible_escadron_id'],
                         }
                     ]
@@ -359,7 +422,7 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
                 }
 
                 const scopeType = cadreSoumetteur.responsibility_scope;
-                let personnesIds = { cadres: [] };
+                let personnesIds = { cadres: [], eleves: [] }; // Initialiser également les élèves
 
                 if (scopeType === 'Service' && cadreSoumetteur.service) {
                     const cadresDuService = await Cadre.findAll({
@@ -369,20 +432,62 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
                     personnesIds.cadres = cadresDuService.map(c => c.id);
 
                 } else if (scopeType === 'Escadron' && cadreSoumetteur.responsible_escadron_id) {
-                    console.warn(`TODO: Logique pour Responsable d'Escadron (mise à jour des élèves) non implémentée ici.`);
-                    continue;
+                    // --- NOUVELLE LOGIQUE POUR LES ESCADRONS ---
+                    console.log(`Traitement de la soumission pour l'Escadron ID: ${cadreSoumetteur.responsible_escadron_id}`);
+                    const cadresDeLEscadron = await Cadre.findAll({
+                        where: {
+                            responsible_escadron_id: cadreSoumetteur.responsible_escadron_id
+                        },
+                        attributes: ['id']
+                    });
+                    personnesIds.cadres = cadresDeLEscadron.map(c => c.id);
+
+                    // Si vous avez une table 'Eleve' et que les élèves sont aussi concernés par cette mise à jour:
+                    // Ajoutez 'Eleve' à l'import en haut du fichier si ce n'est pas déjà fait.
+                    // Exemple de requête pour les élèves :
+                    // const elevesDeLEscadron = await Eleve.findAll({
+                    //     where: { escadron_id: cadreSoumetteur.responsible_escadron_id }, // Assurez-vous du nom de colonne correct dans votre modèle Eleve
+                    //     attributes: ['id']
+                    // });
+                    // personnesIds.eleves = elevesDeLEscadron.map(e => e.id);
 
                 } else {
                     console.warn(`Cadre soumetteur (ID: ${cadreSoumetteur.id}) a un scope de responsabilité "${scopeType}" invalide ou incomplet pour la soumission ${soumission.id}. Skipping status update.`);
                     continue;
                 }
 
-                if (personnesIds.cadres.length === 0) {
-                    console.log(`Aucune personne identifiée pour la soumission ${soumission.id}. Skipping status update.`);
-                    continue;
+                // Maintenant, mettez à jour les statuts des cadres concernés
+                if (personnesIds.cadres.length > 0) {
+                    // Supposons que la validation signifie que ces cadres sont maintenant "Présents"
+                    // Ajustez 'Présent' et les autres champs si la validation implique un autre statut
+                    await Cadre.update(
+                        {
+                            statut_absence: 'Présent', // Ou le statut qui convient après validation
+                            date_debut_absence: null,
+                            motif_absence: null,
+                            motif_details: null,
+                            timestamp_derniere_maj_statut: new Date()
+                        },
+                        {
+                            where: { id: { [Op.in]: personnesIds.cadres } }
+                        }
+                    );
+                    console.log(`Statuts des cadres mis à jour pour les IDs: ${personnesIds.cadres.join(', ')}`);
                 }
 
-                console.log(`Calling utility function to update status for Cadres: [${personnesIds.cadres.join(', ')}] (and Eleves) for date ${dateMiseAJour}.`);
+                // Si vous avez des élèves et une logique de mise à jour distincte pour eux
+                // if (personnesIds.eleves.length > 0) {
+                //     await Eleve.update(
+                //         {
+                //             statut_absence: 'Présent', // Ajustez ce statut pour les élèves
+                //             // ... autres champs à mettre à jour pour les élèves
+                //         },
+                //         {
+                //             where: { id: { [Op.in]: personnesIds.eleves } }
+                //         }
+                //     );
+                //     console.log(`Statuts des élèves mis à jour pour les IDs: ${personnesIds.eleves.join(', ')}`);
+                // }
             }
         }
 
@@ -390,7 +495,7 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
             where: { id: { [Op.in]: soumissions.map(s => s.id) } },
             include: [
                 { model: User, as: 'SubmittedBy', attributes: ['id', 'username'] },
-                { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
+                { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction', 'responsibility_scope', 'responsible_escadron_id'] },
                 { model: User, as: 'ValidatedBy', attributes: ['id', 'username'], required: false }
             ]
         });
@@ -411,57 +516,89 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
 
 // GET /api/mises-a-jour/cadres/summary
 router.get('/cadres/summary', async (req, res) => {
-    // Cette route est déjà bien gérée.
-    console.log(`TODO: Vérifier les permissions pour la route /cadres/summary pour l'utilisateur ${req.user.username} (${req.user.role}).`);
+    console.log(`Checking permissions for /cadres/summary for user ${req.user.username} (${req.user.role}).`); // Log de permission plus clair
 
     try {
-        const date = req.query.date;
-
+        const date = req.query.date; // Date au format 'AAAA-MM-JJ'
         if (!date) {
-            return res.status(400).json({ message: 'Le paramètre "date" est requis.' });
+            return res.status(400).json({ message: 'Le paramètre de date est requis.' });
         }
 
-        const stats = await HistoriqueStatsJournalieresCadres.findOne({
-            where: { date_snapshot: date }
-        });
+        // Déterminer la "journée historique actuelle" en fonction du fuseau horaire de l'application
+        const now = new Date();
+        const currentHistoricalDateLabel = getHistoricalDate(now); // Utilisation de votre utilitaire de date
+
+        // --- DEBUT DES LOGS DE DEBUGGING POUR SUMMARY ---
+        console.log(`[DEBUG_SUMMARY] Date demandée par frontend (req.query.date): ${req.query.date}`);
+        console.log(`[DEBUG_SUMMARY] Journée historique actuelle (calculée par API via getHistoricalDate): ${currentHistoricalDateLabel}`);
+        console.log(`[DEBUG_SUMMARY] Comparaison: ${req.query.date} === ${currentHistoricalDateLabel} ? ${req.query.date === currentHistoricalDateLabel}`);
+        // --- FIN DES LOGS DE DEBUGGING POUR SUMMARY ---
+
+        let stats;
+
+        // Si la date demandée est la journée historique actuelle, calculer les stats en temps réel
+        if (date === currentHistoricalDateLabel) {
+            console.log(`[DEBUG_SUMMARY] Condition VRAIE: Requête pour la journée historique actuelle (${date}). Calcul des stats en temps réel.`);
+            const realTimeStats = await calculateCurrentAggregateStats(); // Appel de la fonction de calcul en temps réel
+            stats = {
+                total_cadres: realTimeStats.total,
+                absents_cadres: realTimeStats.absent,
+                presents_cadres: realTimeStats.present,
+                indisponibles_cadres: realTimeStats.indisponible,
+                sur_le_rang_cadres: realTimeStats.surLeRang,
+                date_snapshot: date // S'assurer que la date du snapshot est bien la date demandée
+            };
+            console.log(`[DEBUG_SUMMARY] Stats en temps réel calculées: Absent=${stats.absents_cadres}, Indisponible=${stats.indisponibles_cadres}`);
+
+        } else {
+            // Sinon, récupérer les stats de la table d'historique (snapshot)
+            console.log(`[DEBUG_SUMMARY] Condition FAUSSE: Requête pour une journée historique passée (${date}). Récupération des stats du snapshot.`);
+            stats = await HistoriqueStatsJournalieresCadres.findOne({
+                where: { date_snapshot: date }
+            });
+            console.log(`[DEBUG_SUMMARY] Stats Historique trouvées: ${stats ? `Absent=${stats.absents_cadres}, Indisponible=${stats.indisponibles_cadres}` : 'Aucune.'}`);
+        }
 
         if (!stats) {
-            return res.status(404).json({ message: 'Aucune statistique trouvée pour cette date.' });
+            // Retourner des zéros si aucune statistique n'est trouvée pour la date
+            console.warn(`[DEBUG_SUMMARY] Aucune statistique trouvée pour la date ${date}. Retourne des zéros.`);
+            return res.status(200).json({
+                message: 'Aucune statistique trouvée pour cette date.',
+                total_cadres: 0,
+                absents_cadres: 0,
+                presents_cadres: 0,
+                indisponibles_cadres: 0,
+                sur_le_rang_cadres: 0,
+                date_snapshot: date
+            });
         }
 
         return res.json(stats);
 
     } catch (error) {
-        console.error('Erreur récupération résumé cadres :', error);
-        return res.status(500).json({ message: 'Erreur serveur.' });
+        console.error('[ERROR_SUMMARY] Erreur lors de la récupération du résumé des cadres :', error);
+        return res.status(500).json({ message: 'Erreur serveur interne.' });
     }
 });
 
 // GET /api/mises-a-jour/users/:userId/submissions
-// Cette route est essentielle pour la modale de détails.
-// Correction de la logique de date et ajout des includes nécessaires.
 router.get('/users/:userId/submissions', async (req, res) => {
     const targetUserId = parseInt(req.params.userId, 10);
-    const dateString = req.query.date; // Date au format 'AAAA-MM-JJ'
+    const dateString = req.query.date;
 
     if (isNaN(targetUserId)) {
         return res.status(400).json({ message: 'L\'ID utilisateur dans l\'URL est invalide.' });
     }
-    if (!dateString) { // Renommé de 'date' à 'dateString' pour éviter la confusion
+    if (!dateString) {
         return res.status(400).json({ message: 'Le paramètre "date" est requis dans la chaîne de requête.' });
     }
 
-    // --- LOGIQUE DE PERMISSION TRÈS IMPORTANTE ---
-    // Seuls les admins peuvent voir n'importe quel userId.
-    // Un utilisateur standard ne peut voir que SES PROPRES soumissions.
     if (req.user.role !== 'Admin' && req.user.id !== targetUserId) {
         console.warn(`Utilisateur ${req.user.username} (ID: ${req.user.id}, Rôle: ${req.user.role}) a tenté d'accéder aux soumissions de l'utilisateur ${targetUserId} sans permission.`);
         return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à voir les soumissions de cet utilisateur.' });
     }
 
     try {
-        // Calcule les bornes précises de la période historique en cours (avec l'heure et le fuseau horaire EAT)
-        // en utilisant la date historique fournie par le frontend (dateString)
         const periodStart = getHistoricalDayStartTime(dateString);
         const periodEnd = getHistoricalDayEndTime(dateString);
 
@@ -470,8 +607,6 @@ router.get('/users/:userId/submissions', async (req, res) => {
         const soumissions = await MiseAJour.findAll({
             where: {
                 submitted_by_id: targetUserId,
-                // Utilisez created_at pour filtrer par la plage horaire réelle de soumission.
-                // update_date est la date J-1, elle est moins précise pour un filtre temporel strict.
                 created_at: {
                     [Op.between]: [periodStart, periodEnd]
                 },
@@ -484,9 +619,9 @@ router.get('/users/:userId/submissions', async (req, res) => {
                     include: [
                         {
                             model: Cadre,
-                            as: 'Cadre', // Alias défini dans le modèle User
-                            attributes: ['id', 'service', 'fonction'], // Récupérer la fonction du cadre soumetteur
-                            required: false // Un utilisateur n'est pas forcément un cadre
+                            as: 'Cadre',
+                            attributes: ['id', 'service', 'fonction'],
+                            required: false
                         }
                     ]
                 },
@@ -494,16 +629,16 @@ router.get('/users/:userId/submissions', async (req, res) => {
                     model: User,
                     as: 'ValidatedBy',
                     attributes: ['id', 'username', 'nom', 'prenom'],
-                    required: false // La validation est optionnelle
+                    required: false
                 },
                 {
-                    model: Cadre, // Inclure le cadre directement lié à la MiseAJour
-                    as: 'Cadre', // Alias défini dans le modèle MiseAJour
-                    attributes: ['id', 'nom', 'prenom', 'fonction'], // Récupérer les détails du cadre mis à jour
+                    model: Cadre,
+                    as: 'Cadre',
+                    attributes: ['id', 'nom', 'prenom', 'fonction'],
                     required: false
                 }
             ],
-            order: [['created_at', 'ASC']], // Tri par date de création pour l'ordre chronologique
+            order: [['created_at', 'ASC']],
         });
 
         return res.status(200).json(soumissions);

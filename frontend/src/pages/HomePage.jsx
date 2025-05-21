@@ -10,7 +10,7 @@ import PersonList from '../components/PersonList';
 // Importations pour la génération de PDF
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import moment from 'moment-timezone';
+import moment from 'moment-timezone'; // Assurez-vous que moment-timezone est bien importé
 
 // Définir une structure de données par défaut pour les statistiques (uniquement pour Cadre)
 const defaultStats = {
@@ -44,19 +44,17 @@ const groupAndCountMotifs = (peopleList) => {
     });
     return motifCounts;
 };
-const getDisplayDateLabel = (realTime, timezone) => {
-    // Utilise moment.tz si un fuseau horaire est spécifié, sinon l'heure locale
-    const momentDate = timezone ? moment.tz(realTime, timezone) : moment(realTime);
-    // La logique est la même que dans votre getHistoricalDate backend :
-    // Si l'heure actuelle est 16h ou plus, la date label est la date du jour suivant.
 
-    const historicalMoment = momentDate.hour() >= 16 ?
-                             momentDate.clone().add(1, 'day') : // Utilisez clone() pour ne pas modifier momentDate
-                             momentDate.clone();
-    // Retourne la date formatée pour l'affichage
-    return historicalMoment.format('DD/MM/YYYY'); // Format comme jj/mm/aaaa pour l'affichage
+// Helper function pour obtenir la date historique (décalée si après 16h)
+// Cette fonction doit être utilisée pour la date envoyée à l'API et pour l'affichage
+// Utilise le fuseau horaire de Madagascar par défaut
+const getHistoricalDate = (realTime, timezone = 'Indian/Antananarivo') => {
+    const momentDate = moment.tz(realTime, timezone);
+    // Si l'heure actuelle est 16h ou plus, la date est la date du jour suivant.
+    return momentDate.hour() >= 16 ?
+           momentDate.clone().add(1, 'day') :
+           momentDate.clone();
 };
-
 
 function HomePage() {
     // Accéder au token et aux infos utilisateur via le contexte
@@ -78,10 +76,10 @@ function HomePage() {
     const [errorList, setErrorList] = useState({ cadre: { absent: null, indisponible: null } });
     const [errorStats, setErrorStats] = useState(null); // État d'erreur pour les stats
     // --- Fin États ---
-const [displayDateLabel, setDisplayDateLabel] = useState('');
+    const [displayDateLabel, setDisplayDateLabel] = useState(''); // Pour l'affichage sur la page (date SPA)
     // Ref pour la zone d'impression (utilisée par html2canvas)
     const printAreaRef = useRef(null);
-    // État pour stocker la date d'impression
+    // État pour stocker la date d'impression (date SPA)
     const [printDate, setPrintDate] = useState('');
     // État pour indiquer si la génération du PDF est en cours
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -97,8 +95,19 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
             setIsLoadingStats(true);
             setErrorStats(null); // Réinitialiser l'erreur au début du fetch
             try {
-                // MODIFICATION ICI : Changez l'URL de l'appel API
-                const response = await fetch('/api/dashboard/summary', { // <-- NOUVELLE URL - MODIFIÉ
+                // IMPORTANT : Calculez la date SPA en utilisant la fonction `getHistoricalDate`
+                // Utilisez le fuseau horaire 'Indian/Antananarivo' si c'est le fuseau horaire de référence pour votre SPA
+                const currentClientTime = new Date(); // L'heure actuelle du client
+                const spaDateMoment = getHistoricalDate(currentClientTime, 'Indian/Antananarivo');
+                const formattedSpaDate = spaDateMoment.format('YYYY-MM-DD'); // Format pour l'API (ex: "2025-05-20")
+
+                // Mettez à jour la date d'affichage sur la page avec cette même date
+                setDisplayDateLabel(spaDateMoment.format('DD/MM/YYYY')); // Format pour l'affichage (ex: "20/05/2025")
+                // Mettez à jour la date pour le PDF (elle aussi doit être la date SPA)
+                setPrintDate(spaDateMoment.format('DD/MM/YYYY'));
+
+                // Utilisez la date calculée pour l'API
+                const response = await fetch(`/api/mises-a-jour/cadres/summary?date=${formattedSpaDate}`, {
                     method: 'GET',
                     headers: {
                         // Assurez-vous d'inclure le token d'authentification si nécessaire
@@ -114,15 +123,18 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                 }
 
                 const data = await response.json();
-                console.log("Données reçues de l'API /api/dashboard/summary :", data); // Log pour vérifier les données reçues - LOG MIS À JOUR
+                // Le log est mis à jour pour refléter la nouvelle route
+                console.log("Données reçues de l'API /api/mises-a-jour/cadres/summary :", data);
 
                 // --- Extraction des données avec les clés correctes (uniquement cadres) ---
-                // Utilise directement les champs 'present' et 'surLeRang' du backend - ADAPTÉ
-                const cadreTotal = data.cadres?.total ?? 0;
-                const cadreAbsent = data.cadres?.absent ?? 0;
-                const cadreIndisponible = data.cadres?.indisponible ?? 0;
-                const cadrePresent = data.cadres?.present ?? (cadreTotal - cadreAbsent - cadreIndisponible); // Utilise le backend si disponible, sinon calcule
-                const cadreSurLeRang = data.cadres?.surLeRang ?? cadrePresent; // Utilise le backend si disponible, sinon calcule
+                // La nouvelle API retourne directement les statistiques des cadres sans un objet "cadres" imbriqué
+                // Donc on accède directement aux propriétés de 'data'
+                const cadreTotal = data.total_cadres ?? 0;
+                const cadreAbsent = data.absents_cadres ?? 0;
+                const cadreIndisponible = data.indisponibles_cadres ?? 0;
+                // 'present' et 'sur_le_rang' sont aussi directement dans 'data'
+                const cadrePresent = data.presents_cadres ?? (cadreTotal - cadreAbsent - cadreIndisponible);
+                const cadreSurLeRang = data.sur_le_rang_cadres ?? cadrePresent;
 
                 setCadreStats({
                     total: cadreTotal,
@@ -142,16 +154,6 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
         };
 
         fetchStats();
-// --- CALCUL ET MISE À JOUR DE LA DATE D'AFFICHAGE DÉCALÉE --- // AJOUTEZ CECI
-        const now = new Date();
-        // Appelez la helper function avec l'heure actuelle
-        // Passez null pour utiliser l'heure locale, ou APP_TIMEZONE si défini
-        const calculatedDisplayDate = getDisplayDateLabel(now, null); // ou APP_TIMEZONE
-        setDisplayDateLabel(calculatedDisplayDate);
-        // -------------------------------------------------------- //
-        // Définir la date actuelle pour l'impression lors du montage du composant
-        const today = new Date();
-        setPrintDate(today.toLocaleDateString('fr-FR')); // Format date comme jj/mm/aaaa
 
     }, [token]); // Dépendance au token pour relancer le fetch si le token change
 
@@ -194,6 +196,12 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
             const backendStatusValue = type === 'absent' ? 'Absent' : 'Indisponible';
             queryParams.append('statut', backendStatusValue);
 
+            // Obtenir la date SPA pour les appels de liste détaillés aussi
+            const currentClientTime = new Date();
+            const spaDateMoment = getHistoricalDate(currentClientTime, 'Indian/Antananarivo');
+            const formattedSpaDate = spaDateMoment.format('YYYY-MM-DD');
+            queryParams.append('date', formattedSpaDate); // Ajouter le paramètre de date
+
             // L'URL pour les listes détaillées de cadres est /api/cadres
             const url = '/api/cadres';
 
@@ -219,7 +227,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
 
             const data = await response.json();
             console.log(`Données de liste reçues pour cadre ${type}:`, data);
- console.log(`Données BRUTES reçues de l'API pour cadre ${type}:`, data);
+            console.log(`Données BRUTES reçues de l'API pour cadre ${type}:`, data);
             // Mettre à jour l'état avec les données reçues pour le type et la catégorie corrects
             setPersonListData(prevState => ({
                 ...prevState, // Conserver les données des autres catégories si elles existent
@@ -286,9 +294,9 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
         // Vérifier si l'on a cliqué à nouveau sur la même catégorie et le(s) même(s) type(s)
         // pour basculer l'affichage (cacher la liste si déjà affichée)
         const isSameDisplay = displayListInfo &&
-                                displayListInfo.category === newDisplayInfo.category &&
-                                displayListInfo.types.length === newDisplayInfo.types.length &&
-                                displayListInfo.types.every(t => newDisplayInfo.types.includes(t));
+                               displayListInfo.category === newDisplayInfo.category &&
+                               displayListInfo.types.length === newDisplayInfo.types.length &&
+                               displayListInfo.types.every(t => newDisplayInfo.types.includes(t));
 
         if (isSameDisplay) {
             // Si on reclique sur la même carte/le même bouton, on cache les listes
@@ -395,7 +403,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                  return Promise.resolve(personListData.cadre[type] || []);
             } else {
                 // Lancer le fetch de la liste spécifique pour les cadres
-                return fetchSpecificList(type, 'cadre');
+                return fetchSpecificList(type, 'cadre'); // On ne gère que les cadres ici
             }
         });
 
@@ -460,7 +468,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
             // Afficher un message d'erreur à l'utilisateur sur l'UI
             setErrorStats(`Impossible de générer le PDF. Détails: ${error.message || error}.`);
         } finally {
-            // Désactiver l'état de génération PDF une fois le processus terminé (succès ou erreur)
+            // Désactiver l'état de génération PDF once the process is complete (success or error)
             setIsGeneratingPdf(false);
 
             setTimeout(() => {
@@ -571,7 +579,6 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                             </div>
 
                         </div> {/* Fin de la rangée Cadres */}
-
                         {/* Boutons pour Cadres */}
                         <div className="row mb-5">
                             <div className="col text-center">
@@ -615,15 +622,15 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                             {/* Affichage de la liste des Absents si demandée (vue normale) */}
                             {displayListInfo.types.includes('absent') && (
                                 <>
-                                    {/* Afficher l'état de chargement ou l'erreur pour la liste Absent (pour cadre) */}
+                                     {/* Afficher l'état de chargement ou l'erreur pour la liste Absent (pour cadre) */}
                                     {isSpecificListLoading('absent') && <div className="alert alert-info">Chargement des Absents...</div>}
                                     {getSpecificListError('absent') && <div className="alert alert-danger">{getSpecificListError('absent')}</div>}
 
-                                    {/* Afficher la liste des Absents si non en chargement et sans erreur, et si des données sont présentes (pour cadre) */}
+                                     {/* Afficher la liste des Absents si non en chargement et sans erreur, et si des données sont présentes (pour cadre) */}
                                     {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length > 0 && (
                                         <PersonList listTitle={`Liste des Absents (Cadres)`} data={personListData.cadre.absent} category="cadre" />
                                     )}
-                                    {/* Message si aucune donnée n'est trouvée pour les Absents (pour cadre) */}
+                                     {/* Message si aucune donnée n'est trouvée pour les Absents (pour cadre) */}
                                     {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length === 0 && (
                                         <div className="alert alert-info">Aucun Absent trouvé pour cette catégorie.</div>
                                     )}
@@ -634,7 +641,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
 
                              {/* Affichage de la liste des Indisponibles si demandée (vue normale) */}
                              {displayListInfo.types.includes('indisponible') && (
-                                <>
+                                 <>
                                      {/* Afficher l'état de chargement ou l'erreur pour la liste Indisponible (pour cadre) */}
                                     {isSpecificListLoading('indisponible') && <div className="alert alert-info">Chargement des Indisponibles...</div>}
                                     {getSpecificListError('indisponible') && <div className="alert alert-danger">{getSpecificListError('indisponible')}</div>}
@@ -645,10 +652,10 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                                     )}
                                      {/* Message si aucune donnée n'est trouvée pour les Indisponibles (pour cadre) */}
                                     {!isSpecificListLoading('indisponible') && !getSpecificListError('indisponible') && personListData.cadre?.indisponible.length === 0 && (
-                                        <div className="alert alert-info">Aucun Indisponible trouvé pour cette catégorie.</div>
+                                         <div className="alert alert-info">Aucun Indisponible trouvé pour cette catégorie.</div>
                                     )}
-                                </>
-                            )}
+                                 </>
+                             )}
 
                              {/* Message si displayListInfo est défini mais qu'aucune liste n'est incluse (cas inattendu) */}
                             {displayListInfo.category === 'cadre' && displayListInfo.types.length === 0 && (
@@ -734,7 +741,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                                          {/* Message si aucun motif n'est trouvé */}
                                          {Object.keys(cadreAbsentMotifCounts).length === 0 && (
                                              <tr>
-                                                 <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun absent avec motif sp\u00E9cifi\u00E9.</td>
+                                                 <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun absent avec motif spécifié.</td>
                                              </tr>
                                          )}
                                     </tbody>
@@ -762,7 +769,7 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                                           {/* Message si aucun motif n'est trouvé */}
                                           {Object.keys(cadreIndisponibleMotifCounts).length === 0 && (
                                               <tr>
-                                                  <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun indisponible avec motif sp\u00E9cifi\u00E9.</td>
+                                                  <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun indisponible avec motif spécifié.</td>
                                               </tr>
                                           )}
                                      </tbody>
@@ -778,8 +785,8 @@ const [displayDateLabel, setDisplayDateLabel] = useState('');
                  )}
              </div>
 
-         </div> // Fin du container principal
-     );
- }
+           </div>
+       );
+   }
 
- export default HomePage;
+   export default HomePage;

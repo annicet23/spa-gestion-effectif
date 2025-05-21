@@ -3,7 +3,7 @@ import './MisesAJourSousMenu1Page.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://10.87.63.23:3000';
 
 const INDISPONSIBLE_MOTIFS = [
   'garde', 'surveillance reboisement Ankofa', 'Permanence', 'repos de service',

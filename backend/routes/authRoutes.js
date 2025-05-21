@@ -1,126 +1,168 @@
-// routes/authRoutes.js
+'use strict';
 const express = require('express');
 const router = express.Router();
-// Importez le modèle User et potentiellement d'autres si nécessaire pour les relations
-const { User } = require('../models'); // Assurez-vous que votre index des modèles exporte 'User'
-const jwt = require('jsonwebtoken'); // Importer jsonwebtoken
-// bcryptjs est nécessaire si vous comparez les mots de passe directement ici,
-// mais votre modèle User semble avoir une méthode validPassword, ce qui est mieux.
-// const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { User, Cadre } = require('../models');
+const bcrypt = require('bcryptjs');
 
-// Si vous utilisez des variables d'environnement (recommandé), assurez-vous que dotenv est configuré dans server.js
-// require('dotenv').config(); // Pas nécessaire ici si déjà fait dans server.js
+const JWT_SECRET = process.env.JWT_SECRET || 'votre_cle_secrete_principale_et_tres_longue_pour_les_tokens_normaux';
+const TEMP_JWT_SECRET = process.env.TEMP_JWT_SECRET || 'votre_cle_secrete_temporaire_longue_et_unique_pour_consultants_en_attente';
 
-// Récupérer la clé secrète pour JWT depuis les variables d'environnement.
-// C'est CRUCIAL que cette clé soit la MÊME que celle utilisée pour vérifier les tokens dans authMiddleware.js.
-// Définissez JWT_SECRET dans votre fichier .env à la racine du projet.
-// La valeur par défaut ne doit être utilisée qu'en dernier recours (et JAMAIS une clé faible en production).
-const JWT_SECRET = process.env.JWT_SECRET || 'votre_cle_secrete_tres_longue_et_aleatoire'; // <-- Utilisez la MÊME valeur que dans authMiddleware.js et votre .env
+// Helper function to get the date of the most recent Friday at 6 AM (including the current Friday if before 6 AM)
+const getPreviousOrCurrentFridaySixAM = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
 
-// TODO: Assurez-vous que votre modèle User :
-// - A un champ 'password' pour stocker le mot de passe HACHÉ.
-// - A une méthode 'validPassword(password)' qui utilise bcrypt.compare pour comparer le mot de passe fourni avec le hash stocké.
-// - Utilise des hooks (beforeCreate, beforeUpdate) pour hacher le mot de passe avant de le sauvegarder.
-// - A un champ 'status' (ex: ENUM('Active', 'Inactive')) et une logique pour le gérer.
-// - A des champs 'cadre_id' et 'eleve_id' si un utilisateur est lié à un cadre ou un élève.
+    let daysToFriday = 0;
+    if (day === 5) { // If it's Friday
+        if (d.getHours() < 6) {
+            // It's Friday before 6 AM, so this Friday 6 AM is the target
+            daysToFriday = 0;
+        } else {
+            // It's Friday after 6 AM, target is next Friday 6 AM, so previous Friday was 7 days ago
+            daysToFriday = -7;
+        }
+    } else if (day < 5) { // If it's Mon-Thu, target is previous Friday
+        daysToFriday = -(day + 2); // (day from Sunday + 2 to get to Friday)
+    } else { // If it's Sat-Sun, target is previous Friday
+        daysToFriday = -(day - 5);
+    }
+
+    const fridaySixAM = new Date(d);
+    fridaySixAM.setDate(d.getDate() + daysToFriday);
+    fridaySixAM.setHours(6, 0, 0, 0); // Set to 6 AM (06:00:00.000)
+    return fridaySixAM;
+};
 
 
 // POST /api/auth/login
-// Route pour la connexion d'un utilisateur existant
 router.post('/login', async (req, res) => {
-    // Les données attendues : nom d'utilisateur et mot de passe
     const { username, password } = req.body;
 
-    // 1. Validation des entrées
     if (!username || !password) {
         return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe sont requis.' });
     }
 
     try {
-        // 2. Rechercher l'utilisateur par username
-        // Inclure les champs cadre_id et eleve_id si vous les utilisez pour les lier à l'utilisateur
         const user = await User.findOne({
-            where: { username: username },
-            // Sélectionner explicitement les champs nécessaires (y compris les IDs liés)
-            attributes: ['id', 'username', 'role', 'password', 'status', 'cadre_id', 'eleve_id']
+            where: { username: username.trim() },
+            attributes: [
+                'id', 'username', 'role', 'password', 'status', 'cadre_id',
+                'matricule', 'nom', 'prenom', 'grade', 'service',
+                'password_needs_reset', 'last_password_change'
+            ]
         });
 
-        // 3. Vérifier si l'utilisateur existe
         if (!user) {
-            // Note de sécurité : Il est préférable de renvoyer un message générique
-            // pour ne pas indiquer si c'est l'utilisateur ou le mot de passe qui est incorrect.
             console.log(`Tentative de connexion échouée pour l'utilisateur "${username}" : Utilisateur non trouvé.`);
             return res.status(401).json({ message: 'Identifiants invalides.' });
         }
 
-        // 4. Vérifier si le compte est actif (selon votre champ status dans le modèle User)
-        if (user.status !== 'Active') { // Assurez-vous que 'Active' est la bonne valeur dans votre ENUM/champ
-             console.log(`Tentative de connexion échouée pour l'utilisateur "${username}" : Compte inactif.`);
-             return res.status(401).json({ message: 'Votre compte n\'est pas actif.' });
-        }
-
-
-        // 5. Comparer le mot de passe fourni avec le mot de passe haché stocké
-        // Cette méthode 'validPassword' doit être définie dans votre modèle User et utiliser bcrypt.compare
         const isPasswordValid = await user.validPassword(password);
-
-        // --- LOG DE DÉBOGAGE ---
-        console.log(`Comparaison de mot de passe pour l'utilisateur "${username}" : ${isPasswordValid ? 'SUCCÈS' : 'ÉCHEC'}`);
-        // -----------------------
-
-
-        // 6. Vérifier si le mot de passe est valide
         if (!isPasswordValid) {
-            // Message générique pour la sécurité
+            console.log(`Comparaison de mot de passe pour l'utilisateur "${username}" : ÉCHEC.`);
             return res.status(401).json({ message: 'Identifiants invalides.' });
         }
 
-        // 7. Si l'authentification réussit, générer un JWT
-        // Le payload du token contient des informations sur l'utilisateur (non sensibles)
-        // qui seront accessibles via req.user après le middleware authenticateJWT
+        // --- Logique Spécifique au Consultant nécessitant une mise à jour ---
+        if (user.role === 'Consultant') {
+            const needsMatriculeUpdate = user.matricule === null || user.matricule.trim() === '' || user.cadre_id === null;
+            let needsPasswordReset = user.password_needs_reset === true; // Keep existing reset flag if true
+
+            // NOUVELLE LOGIQUE : Le mot de passe expire chaque vendredi à 6h.
+            const now = new Date();
+            const lastFridaySixAM = getPreviousOrCurrentFridaySixAM(now);
+
+            // Le mot de passe a expiré si :
+            // 1. last_password_change est null (premier login/après migration sans initialisation)
+            // 2. Ou si last_password_change est antérieur au dernier vendredi 6h du matin
+            if (!user.last_password_change || user.last_password_change < lastFridaySixAM) {
+                needsPasswordReset = true;
+                console.log(`Consultant "${username}" doit changer son mot de passe (expiration fixée au vendredi 6h).`);
+            }
+
+
+            if (needsMatriculeUpdate || needsPasswordReset) {
+                const tempTokenPayload = {
+                    id: user.id,
+                    username: user.username,
+                    role: user.role,
+                    requiresUpdate: true,
+                    matricule: user.matricule || ''
+                };
+                const tempToken = jwt.sign(tempTokenPayload, TEMP_JWT_SECRET, { expiresIn: '15m' });
+
+                let message = 'Votre profil nécessite une mise à jour.';
+                let requiresMatriculePrompt = false;
+                let requiresPasswordUpdate = false;
+
+                if (needsMatriculeUpdate && !needsPasswordReset) {
+                    message = 'Veuillez saisir votre matricule pour continuer.';
+                    requiresMatriculePrompt = true;
+                    console.log(`Consultant "${username}" nécessite la saisie de son matricule.`);
+                } else if (needsPasswordReset && !needsMatriculeUpdate) {
+                    message = 'Votre mot de passe a expiré et doit être changé.';
+                    requiresPasswordUpdate = true;
+                    console.log(`Consultant "${username}" doit changer son mot de passe (expiration ou reset flag).`);
+                } else if (needsMatriculeUpdate && needsPasswordReset) {
+                    message = 'Votre profil (mot de passe et matricule) doit être mis à jour.';
+                    requiresPasswordUpdate = true;
+                    console.log(`Consultant "${username}" doit changer son mot de passe ET compléter son matricule.`);
+                }
+
+                return res.status(401).json({
+                    message: message,
+                    tempToken: tempToken,
+                    requiresMatriculePrompt: requiresMatriculePrompt,
+                    requiresPasswordUpdate: requiresPasswordUpdate,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        role: user.role,
+                        matricule: user.matricule || '',
+                        nom: user.nom,
+                        prenom: user.prenom,
+                        grade: user.grade,
+                        service: user.service,
+                    }
+                });
+            }
+        }
+        // --- FIN Logique Spécifique au Consultant ---
+
+        if (user.status !== 'Active') {
+            console.log(`Tentative de connexion échouée pour l'utilisateur "${username}" : Compte inactif.`);
+            return res.status(403).json({ message: 'Votre compte n\'est pas actif. Veuillez contacter l\'administrateur.' });
+        }
+
         const payload = {
             id: user.id,
             username: user.username,
             role: user.role,
-            // Inclure les IDs liés si l'utilisateur est lié à un cadre ou un élève
-            cadre_id: user.cadre_id, // Ajouté au payload
-            eleve_id: user.eleve_id  // Ajouté au payload
-            // TODO: Inclure d'autres informations non sensibles pertinentes si nécessaire (ex: matricule si pertinent pour le frontend)
-            // matricule: user.matricule // Si matricule est dans le modèle User et pertinent pour le payload
+            cadre_id: user.cadre_id,
+            matricule: user.matricule,
+            nom: user.nom,
+            prenom: user.prenom,
+            grade: user.grade,
+            service: user.service,
         };
 
-        // Définir l'expiration du token (ex: 24 heures)
-        const tokenOptions = {
-            expiresIn: '24h' // Le token expire après 24 heures
-            // TODO: Ajustez la durée de vie du token selon vos besoins de sécurité et d'expérience utilisateur
-        };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 
-        const token = jwt.sign(payload, JWT_SECRET, tokenOptions);
-
-        // 8. Renvoyer le token et les informations de l'utilisateur (sauf le mot de passe)
-        // On crée une copie de l'objet user et on supprime le champ password avant de l'envoyer
-         const userResponse = user.toJSON(); // Convertit l'instance Sequelize en objet JSON
-         delete userResponse.password; // Supprime le mot de passe
-
-         // Inclure les IDs liés dans l'objet user renvoyé aussi
-         // userResponse.cadre_id = user.cadre_id; // Déjà inclus via toJSON si le champ existe
-         // userResponse.eleve_id = user.eleve_id; // Déjà inclus via toJSON si le champ existe
+        const userResponse = user.toJSON();
+        delete userResponse.password;
 
         console.log(`Connexion réussie pour l'utilisateur "${username}". Token généré.`);
         return res.status(200).json({
             message: 'Connexion réussie',
             token: token,
-            user: userResponse // Informations sur l'utilisateur connecté (sans le mot de passe)
+            user: userResponse
         });
 
     } catch (error) {
         console.error('Erreur serveur lors de la connexion :', error);
-        // En cas d'erreur serveur inattendue
         return res.status(500).json({ message: 'Erreur serveur lors de la connexion.', error: error.message });
     }
 });
 
-// TODO: Ajouter d'autres routes d'authentification si nécessaire (ex: /register, /refresh-token, /logout)
-
-
-module.exports = router; // Exporter le routeur
+module.exports = router;

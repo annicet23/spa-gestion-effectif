@@ -1,181 +1,280 @@
-// src/pages/LoginPage.jsx
 import React, { useState } from 'react';
-// Importer le hook useAuth pour accéder au contexte
 import { useAuth } from '../context/AuthContext';
-// Importer le hook useNavigate pour la redirection
 import { useNavigate } from 'react-router-dom';
-
+import Swal from 'sweetalert2';
 
 function LoginPage() {
-  // Utiliser le hook useAuth pour accéder à la fonction login du contexte
-  const { login } = useAuth();
-  // Utiliser le hook useNavigate pour la redirection après connexion
-  const navigate = useNavigate();
+    const { login } = useAuth();
+    const navigate = useNavigate();
 
-  // États locaux pour stocker le nom d'utilisateur et le mot de passe
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false); // Pour le checkbox "Se souvenir de moi"
-  const [error, setError] = useState(''); // Pour afficher les messages d'erreur
-  const [loading, setLoading] = useState(false); // Pour indiquer si la connexion est en cours
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-  // Gère les changements dans le champ nom d'utilisateur
-  const handleUsernameChange = (event) => {
-    setUsername(event.target.value);
-  };
+    const handleUsernameChange = (event) => setUsername(event.target.value);
+    const handlePasswordChange = (event) => setPassword(event.target.value);
+    const handleRememberMeChange = (event) => setRememberMe(event.target.checked);
 
-  // Gère les changements dans le champ mot de passe
-  const handlePasswordChange = (event) => {
-    setPassword(event.target.value);
-  };
+    const handleMatriculePrompt = async (initialMessage, currentPassword) => {
+        setLoading(true);
+        const { value: matricule, dismiss } = await Swal.fire({
+            title: initialMessage || 'Veuillez saisir votre matricule',
+            input: 'text',
+            inputPlaceholder: 'Votre Matricule',
+            showCancelButton: true,
+            confirmButtonText: 'Valider',
+            cancelButtonText: 'Annuler',
+            allowOutsideClick: false,
+            inputValidator: (value) => {
+                if (!value || value.trim() === '') {
+                    return 'Le matricule est requis !';
+                }
+            }
+        });
 
-  // Gère le changement du checkbox "Se souvenir de moi"
-  const handleRememberMeChange = (event) => {
-    setRememberMe(event.target.checked);
-  };
+        if (dismiss) {
+            Swal.fire('Annulé', 'Connexion annulée. Veuillez réessayer.', 'info');
+            setLoading(false);
+            localStorage.removeItem('tempToken');
+            return;
+        }
 
-  // Gère la soumission du formulaire
-  const handleSubmit = async (event) => {
-    event.preventDefault(); // Empêche le rechargement de la page par défaut
+        if (matricule) {
+            const tempToken = localStorage.getItem('tempToken');
+            if (!tempToken) {
+                Swal.fire('Erreur', 'Session expirée. Veuillez vous reconnecter.', 'error');
+                navigate('/login');
+                setLoading(false);
+                return;
+            }
 
-    setError(''); // Réinitialiser les erreurs précédentes
-    setLoading(true); // Activer l'indicateur de chargement
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL;
+                const response = await fetch(`${apiUrl}/api/consultant/update-profile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tempToken}`
+                    },
+                    body: JSON.stringify({
+                        matricule: matricule.trim(),
+                        oldPassword: currentPassword,
+                        newPassword: currentPassword, // Lors de la seule saisie du matricule, l'ancien mot de passe est utilisé comme nouveau pour valider
+                        confirmNewPassword: currentPassword, // C'est le backend qui validera si un vrai changement est nécessaire
+                    })
+                });
 
-    try {
-      // Effectuer l'appel API vers votre backend
-      const response = await fetch('http://localhost:3000/api/auth/login', { // Adaptez l'URL si nécessaire
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
+                const data = await response.json();
 
-      const data = await response.json();
+                if (response.ok) {
+                    Swal.fire('Succès', data.message, 'success');
+                    login(data.token, data.user);
+                    localStorage.removeItem('tempToken');
+                    navigate('/');
+                } else {
+                    const errorMessage = data.message || 'Erreur lors de la validation du matricule.';
+                    Swal.fire('Erreur', errorMessage, 'error');
+                    setError(errorMessage);
 
-      if (response.ok) {
-        // Connexion réussie
-        console.log('Connexion réussie:', data);
-        // Utiliser la fonction login du contexte pour stocker le token et l'utilisateur
-        login(data.token, data.user);
-        // TODO: Gérer "Se souvenir de moi" (ex: stocker le token plus longtemps si coché)
+                    if (data.requiresMatriculePrompt) {
+                        await handleMatriculePrompt(errorMessage, currentPassword);
+                    } else if (data.requiresPasswordUpdate || data.requiresMatriculeUpdate) {
+                        await handleProfileUpdatePrompt(errorMessage, matricule, currentPassword);
+                    } else {
+                        localStorage.removeItem('tempToken');
+                    }
+                }
+            } catch (err) {
+                Swal.fire('Erreur', 'Connexion au serveur échouée.', 'error');
+                setError('Connexion au serveur échouée.');
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
 
-        // Rediriger l'utilisateur vers la page d'accueil
-        navigate('/');
-      } else {
-        // Connexion échouée (ex: identifiants invalides, compte inactif)
-        console.error('Erreur de connexion:', data.message);
-        setError(data.message || 'Erreur lors de la connexion.'); // Afficher le message d'erreur du backend
-      }
-    } catch (err) {
-      console.error('Erreur réseau ou serveur:', err);
-      setError('Impossible de se connecter au serveur.'); // Message pour les erreurs réseau
-    } finally {
-      setLoading(false); // Désactiver l'indicateur de chargement
-    }
-  };
+    const handleProfileUpdatePrompt = async (initialMessage, prefillMatricule = '', prefillOldPassword = '') => {
+        setLoading(true);
+        const { value: formValues, dismiss } = await Swal.fire({
+            title: initialMessage || 'Mise à jour du profil requise',
+            html:
+                `<input id="swal-input-matricule" class="swal2-input" placeholder="Votre Matricule" value="${prefillMatricule}">` +
+                `<input id="swal-input-old-pass" type="password" class="swal2-input" placeholder="Ancien mot de passe" value="${prefillOldPassword}">` +
+                '<input id="swal-input-new-pass" type="password" class="swal2-input" placeholder="Nouveau mot de passe">' +
+                '<input id="swal-input-confirm-pass" type="password" class="swal2-input" placeholder="Confirmer nouveau mot de passe">',
+            showCancelButton: true,
+            confirmButtonText: 'Mettre à jour',
+            cancelButtonText: 'Annuler',
+            allowOutsideClick: false,
+            preConfirm: () => {
+                const matricule = document.getElementById('swal-input-matricule').value;
+                const oldPassword = document.getElementById('swal-input-old-pass').value;
+                const newPassword = document.getElementById('swal-input-new-pass').value;
+                const confirmNewPassword = document.getElementById('swal-input-confirm-pass').value;
 
-  return (
-    // Utilisation de classes Bootstrap pour centrer le formulaire et styliser
-    // Ajout d'une classe custom pour le fond (voir App.css)
-    <div className="login-page-container d-flex justify-content-center align-items-center min-vh-100">
-      <div className="card p-4 login-card"> {/* Ajout classe login-card pour ombre/bordure */}
-        <div className="card-body">
-          {/* Cercle avec icône utilisateur */}
-          <div className="user-icon-circle bg-primary text-white mx-auto mb-4 d-flex justify-content-center align-items-center">
-            {/* Icône utilisateur (SVG simple ou Font Awesome si installé) */}
-            {/* SVG simple pour l'exemple */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" className="bi bi-person" viewBox="0 0 16 16">
-              <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-            </svg>
-          </div>
+                if (!matricule || !oldPassword || !newPassword || !confirmNewPassword) {
+                    Swal.showValidationMessage('Tous les champs sont requis.');
+                    return false;
+                }
+                if (newPassword !== confirmNewPassword) {
+                    Swal.showValidationMessage('Les mots de passe ne correspondent pas.');
+                    return false;
+                }
+                if (newPassword.length < 6) {
+                    Swal.showValidationMessage('Le mot de passe doit faire au moins 6 caractères.');
+                    return false;
+                }
 
-          {/* Titre de la carte - peut être retiré si l'icône suffit */}
-          {/* <h2 className="card-title text-center mb-4">Connexion</h2> */}
+                return { matricule, oldPassword, newPassword, confirmNewPassword };
+            }
+        });
 
-          {/* Afficher les messages d'erreur */}
-          {error && <div className="alert alert-danger">{error}</div>}
+        if (dismiss) {
+            Swal.fire('Annulé', 'Mise à jour annulée.', 'info');
+            localStorage.removeItem('tempToken');
+            setLoading(false);
+            return;
+        }
 
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3 input-group"> {/* Utilisation de input-group pour l'icône */}
-              <span className="input-group-text">
-                 {/* Icône utilisateur pour le champ username */}
-                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-person" viewBox="0 0 16 16">
-                   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                 </svg>
-              </span>
-              <input
-                type="text"
-                className="form-control"
-                id="usernameInput"
-                placeholder="Nom d'utilisateur" // Placeholder comme dans l'image
-                value={username}
-                onChange={handleUsernameChange}
-                required // Champ requis
-                disabled={loading} // Désactiver pendant le chargement
-              />
+        if (formValues) {
+            const tempToken = localStorage.getItem('tempToken');
+            if (!tempToken) {
+                Swal.fire('Erreur', 'Session expirée. Veuillez vous reconnecter.', 'error');
+                navigate('/login');
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL;
+                const response = await fetch(`${apiUrl}/api/consultant/update-profile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tempToken}`
+                    },
+                    body: JSON.stringify(formValues)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    Swal.fire('Succès', data.message, 'success');
+                    login(data.token, data.user);
+                    localStorage.removeItem('tempToken');
+                    navigate('/');
+                } else {
+                    const errorMessage = data.message || 'Erreur de mise à jour du profil.';
+                    Swal.fire('Erreur', errorMessage, 'error');
+                    setError(errorMessage);
+
+                    if (data.requiresMatriculeUpdate || data.requiresPasswordUpdate || data.requiresMatriculePrompt) {
+                        await handleProfileUpdatePrompt(errorMessage, formValues.matricule, formValues.oldPassword);
+                    } else {
+                        localStorage.removeItem('tempToken');
+                    }
+                }
+            } catch (err) {
+                Swal.fire('Erreur', 'Connexion au serveur échouée.', 'error');
+                setError('Connexion au serveur échouée.');
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL;
+            const response = await fetch(`${apiUrl}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (data.tempToken) {
+                    localStorage.setItem('tempToken', data.tempToken);
+
+                    // Modifiez le message initial du prompt en fonction de la raison (si fournie par le backend)
+                    let initialPromptMessage = data.message;
+                    if (data.requiresPasswordUpdate && data.message.includes('expiré')) { // Adaptez cette condition si le backend renvoie un flag spécifique comme `data.passwordExpired: true`
+                        initialPromptMessage = 'Votre mot de passe a expiré. Veuillez le changer.';
+                    } else if (data.requiresMatriculePrompt) {
+                        initialPromptMessage = data.message;
+                    } else if (data.requiresPasswordUpdate) {
+                        initialPromptMessage = 'Votre profil (mot de passe et/ou matricule) doit être mis à jour.';
+                    }
+
+
+                    if (data.requiresMatriculePrompt) {
+                        await handleMatriculePrompt(initialPromptMessage, password);
+                    } else if (data.requiresPasswordUpdate) {
+                        // Passez le matricule existant (même s'il est vide) pour pré-remplir si nécessaire
+                        await handleProfileUpdatePrompt(initialPromptMessage, data.user?.matricule || '', password);
+                    } else {
+                        Swal.fire('Erreur', data.message || 'Erreur inconnue.', 'error');
+                    }
+                } else {
+                    Swal.fire('Erreur', data.message || 'Nom d\'utilisateur ou mot de passe incorrect.', 'error');
+                    setError(data.message || 'Identifiants invalides.');
+                }
+            } else {
+                login(data.token, data.user);
+                localStorage.removeItem('tempToken');
+                navigate('/');
+            }
+        } catch (err) {
+            Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
+            setError('Impossible de contacter le serveur.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="login-page-container d-flex justify-content-center align-items-center min-vh-100">
+            <div className="card p-4 login-card">
+                <div className="card-body">
+                    <div className="user-icon-circle bg-primary text-white mx-auto mb-4 d-flex justify-content-center align-items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" className="bi bi-person" viewBox="0 0 16 16">
+                            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
+                        </svg>
+                    </div>
+                    {error && <div className="alert alert-danger">{error}</div>}
+                    <form onSubmit={handleSubmit}>
+                        <div className="mb-3 input-group">
+                            <span className="input-group-text">
+                                <i className="bi bi-person"></i>
+                            </span>
+                            <input type="text" className="form-control" placeholder="Nom d'utilisateur" value={username} onChange={handleUsernameChange} required />
+                        </div>
+                        <div className="mb-3 input-group">
+                            <span className="input-group-text">
+                                <i className="bi bi-lock"></i>
+                            </span>
+                            <input type="password" className="form-control" placeholder="Mot de passe" value={password} onChange={handlePasswordChange} required />
+                        </div>
+                        <div className="form-check mb-3">
+                            <input className="form-check-input" type="checkbox" checked={rememberMe} onChange={handleRememberMeChange} id="rememberMe" />
+                            <label className="form-check-label" htmlFor="rememberMe">Se souvenir de moi</label>
+                        </div>
+                        <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+                            {loading ? 'Connexion en cours...' : 'Se connecter'}
+                        </button>
+                    </form>
+                </div>
             </div>
-
-            <div className="mb-3 input-group"> {/* Utilisation de input-group pour l'icône */}
-              <span className="input-group-text">
-                 {/* Icône cadenas pour le champ password */}
-                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-lock" viewBox="0 0 16 16">
-                   <path d="M8 1a2 2 0 0 0-2 2v4H5a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H8V3a1 1 0 0 1 1-1h.5a.5.5 0 0 0 0-1H9a2 2 0 0 0-2 2v4h2v2H5V8h2V3a2 2 0 0 0 2-2z"/>
-                 </svg>
-              </span>
-              <input
-                type="password"
-                className="form-control"
-                id="passwordInput"
-                placeholder="Mot de passe" // Placeholder comme dans l'image
-                value={password}
-                onChange={handlePasswordChange}
-                required // Champ requis
-                 disabled={loading} // Désactiver pendant le chargement
-              />
-            </div>
-
-            {/* Section "Remember me" et "Forgot password?" */}
-            <div className="d-flex justify-content-between align-items-center mb-4"> {/* Utilisation de flexbox pour aligner */}
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  value=""
-                  id="rememberMeCheck"
-                  checked={rememberMe}
-                  onChange={handleRememberMeChange}
-                   disabled={loading} // Désactiver pendant le chargement
-                />
-                <label className="form-check-label" htmlFor="rememberMeCheck">
-                  Se souvenir de moi
-                </label>
-              </div>
-              {/* Lien "Mot de passe oublié" - href="#" pour l'instant */}
-              <a href="#" className="text-decoration-none text-primary">Mot de passe oublié ?</a>
-            </div>
-
-            {/* Bouton de connexion */}
-            {/* Utilisation de btn-primary pour le fond bleu Bootstrap */}
-            <button
-              type="submit"
-              className="btn btn-primary w-100 mb-3"
-              disabled={loading} // Désactiver pendant le chargement
-            >
-              {loading ? 'Connexion...' : 'SE CONNECTER'} {/* Changer le texte pendant le chargement */}
-            </button>
-
-            {/* Lien "Register" / S'inscrire */}
-            <div className="text-center">
-               {/* Lien "S'inscrire" - href="#" pour l'instant */}
-               <a href="#" className="text-decoration-none text-primary">S'inscrire</a>
-            </div>
-
-          </form>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default LoginPage;

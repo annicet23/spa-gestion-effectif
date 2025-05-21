@@ -39,12 +39,26 @@ function CreateCadrePage() {
            // }
            // Options simulées
            const simulatedServices = [
-               { id: 1, nom: 'Administration' },
-               { id: 2, nom: 'Logistique' },
-               { id: 3, nom: 'Formation' },
-               { id: 4, nom: 'Santé' },
-               // TODO: Ajouter d'autres services
-           ];
+    { id: 1, nom: 'CAB' },
+    { id: 2, nom: 'DI' },
+    { id: 3, nom: 'SAF' },
+    { id: 4, nom: 'ST' },
+    { id: 5, nom: 'SM' },
+    { id: 6, nom: 'COURS A' },
+    { id: 7, nom: 'COURS B' },
+    { id: 8, nom: 'SED' },
+    { id: 9, nom: 'SRH' },
+    { id: 10, nom: 'PEDA' },
+    { id: 11, nom: 'SSL' },
+    { id: 12, nom: 'MATR' },
+    { id: 13, nom: 'TELECOM' },
+    { id: 14, nom: 'ARM' },
+    { id: 15, nom: 'PDS' },
+    { id: 16, nom: 'INFR' },
+    { id: 17, nom: 'PIF' },
+    { id: 18, nom: 'INFO' },
+    { id: 19, nom: 'SE' }
+];
            setServices(simulatedServices);
        };
 
