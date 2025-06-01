@@ -1,7 +1,8 @@
 'use strict';
 const cron = require('node-cron');
 
-const { Cadre, HistoriqueStatsJournalieresCadres } = require('../models');
+// AJOUTÉ : HistoriquePersonnesJournalieresCadres
+const { Cadre, HistoriqueStatsJournalieresCadres, HistoriquePersonnesJournalieresCadres } = require('../models');
 const { getHistoricalDate, getHistoricalDayStartTime, getHistoricalDayEndTime } = require('../utils/date');
 const { Op } = require('sequelize');
 const moment = require('moment-timezone'); // Assurez-vous d'avoir moment-timezone installé (npm install moment-timezone)
@@ -21,12 +22,11 @@ async function calculateCurrentAggregateStats() {
         // Log détaillé de chaque cadre et son statut
         if (cadres.length > 0) {
             cadres.forEach(c => {
-                console.log(`[DEBUG_STATS] Cadre ID: <span class="math-inline">\{c\.id\}, Statut\: '</span>{c.statut_absence}'`);
+                console.log(`[DEBUG_STATS] Cadre ID: ${c.id}, Statut: '${c.statut_absence}'`);
             });
         } else {
             console.log(`[DEBUG_STATS] Aucun cadre trouvé dans la base de données.`);
         }
-
 
         let present = 0;
         let absent = 0;
@@ -46,7 +46,7 @@ async function calculateCurrentAggregateStats() {
                     indisponible++;
                     break;
                 default:
-                    console.warn(`[DEBUG_STATS] Cadre <span class="math-inline">\{cadre\.id\} a un statut inattendu\: '</span>{cadre.statut_absence}'. Compte comme Présent.`);
+                    console.warn(`[DEBUG_STATS] Cadre ${cadre.id} a un statut inattendu: '${cadre.statut_absence}'. Compte comme Présent.`);
                     present++; // Compter comme présent par défaut si le statut est inconnu
             }
         }
@@ -154,8 +154,12 @@ async function finalizeHistoricalDayTask() {
             const individualSnapshots = allCadres.map(cadre => ({
                 date_snapshot: historicalDateToFinalize,
                 cadre_id: cadre.id,
-                statut_snapshot: cadre.statut_absence,
+                statut_snapshot: cadre.statut_absence, // CORRIGÉ : était cadre.statre_absence
                 motif_snapshot: cadre.motif_absence,
+                // ATTENTION : Les champs suivants (grade_snapshot, nom_snapshot, etc.) ne sont pas définis
+                // dans votre modèle HistoriquePersonnesJournalieresCadres.
+                // Si vous voulez les stocker, vous devez d'abord mettre à jour le modèle et la base de données.
+                // Sinon, Sequelize les ignorera lors de l'insertion.
                 grade_snapshot: cadre.grade,
                 nom_snapshot: cadre.nom,
                 prenom_snapshot: cadre.prenom,
@@ -199,8 +203,59 @@ async function finalizeHistoricalDayTask() {
     }
 }
 
+// FONCTION CORRIGÉE : Rattrapage UNE SEULE FOIS basé sur l'horodatage
+async function checkAndRunMissedTask() {
+    try {
+        const today = moment.tz(APP_TIMEZONE).format('YYYY-MM-DD');
+        const today16h = moment.tz(APP_TIMEZONE).hour(16).minute(0).second(0);
+
+        console.log(`[MISSED_TASK] Vérification de la tâche pour la date: ${today}`);
+
+        // Vérifier si on a déjà des données historiques pour aujourd'hui
+        const existingRecord = await HistoriqueStatsJournalieresCadres.findOne({
+            where: { date_snapshot: today }
+        });
+
+        if (!existingRecord) {
+            console.log('🔧 [MISSED_TASK] Aucun enregistrement trouvé - exécution de la tâche...');
+            await finalizeHistoricalDayTask();
+            console.log('✅ [MISSED_TASK] Tâche exécutée avec succès');
+        } else {
+            const recordUpdateTime = moment.tz(existingRecord.updated_at, APP_TIMEZONE);
+            console.log(`[MISSED_TASK] Enregistrement trouvé, mis à jour à: ${recordUpdateTime.format('YYYY-MM-DD HH:mm:ss')}`);
+
+            // Si l'enregistrement a été mis à jour AVANT 16h00 aujourd'hui
+            if (recordUpdateTime.isBefore(today16h)) {
+                console.log('🔧 [MISSED_TASK] Tâche de 16h00 manquée - exécution maintenant...');
+                await finalizeHistoricalDayTask();
+                console.log('✅ [MISSED_TASK] Tâche manquée exécutée avec succès');
+            } else {
+                console.log('✅ [MISSED_TASK] Tâche de 16h00 déjà faite - aucune action');
+            }
+        }
+    } catch (error) {
+        console.error('❌ [MISSED_TASK] Erreur lors de la vérification:', error);
+    }
+}
+
 function scheduleHistoricalTasks() {
     console.log(`Scheduling tasks with timezone: ${APP_TIMEZONE}`);
+
+    // NOUVEAU : Vérifier si on a raté la tâche de 16h aujourd'hui
+    const now = moment.tz(APP_TIMEZONE);
+    const today16h = moment.tz(APP_TIMEZONE).hour(16).minute(0).second(0);
+
+    console.log(`Heure actuelle: ${now.format('HH:mm')}`);
+    console.log(`Heure de la tâche: ${today16h.format('HH:mm')}`);
+
+    // Si on est après 16h00 aujourd'hui et que le serveur vient de démarrer
+    if (now.isAfter(today16h)) {
+        console.log('🚨 DÉTECTION : Serveur démarré après 16h00, vérification de la tâche manquée...');
+        // Exécuter la vérification de façon asynchrone pour ne pas bloquer le démarrage
+        setImmediate(() => {
+            checkAndRunMissedTask();
+        });
+    }
 
     cron.schedule('0 */2 * * *', upsertAggregateSnapshotTask, {
         scheduled: true,
@@ -213,6 +268,8 @@ function scheduleHistoricalTasks() {
         timezone: APP_TIMEZONE
     });
     console.log('Scheduled historical day finalization and status reset task to run daily at 16:00.');
+
+    console.log('Historical tasks scheduled.');
 }
 
 module.exports = {
@@ -220,4 +277,5 @@ module.exports = {
     upsertAggregateSnapshotTask,
     finalizeHistoricalDayTask,
     calculateCurrentAggregateStats,
+    checkAndRunMissedTask,
 };

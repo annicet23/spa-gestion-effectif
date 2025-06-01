@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { Form, Button, Spinner, Alert, Card } from 'react-bootstrap';
 
 // Assurez-vous que VITE_API_URL est défini dans votre fichier .env (par exemple, VITE_API_URL=http://localhost:3000)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function ConsultantUpdateProfilePage() {
     const [oldPassword, setOldPassword] = useState('');

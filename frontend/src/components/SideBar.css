@@ -1,0 +1,211 @@
+/* === NOUVEAU SIDEBAR SANS BOOTSTRAP === */
+
+/* Bouton mobile */
+.mobile-toggle-btn {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1050;
+    background: #007bff;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    padding: 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    display: none; /* Caché par défaut */
+}
+
+.mobile-toggle-btn:hover {
+    background: #0056b3;
+    transform: scale(1.05);
+}
+
+/* Container principal */
+.custom-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    background: #d6d8da91; /* Fond bleu clair */
+    z-index: 1020;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    overflow-y: auto;
+    padding-top: 90px; /* Marge en haut */
+}
+
+/* Contenu de la sidebar */
+.sidebar-content {
+    padding: 0 10px;
+}
+
+/* === RESPONSIVE === */
+
+/* MOBILE (<768px) */
+@media (max-width: 767px) {
+    .mobile-toggle-btn {
+        display: block !important; /* Bouton visible sur mobile */
+    }
+
+    .custom-sidebar {
+        width: 250px;
+        transform: translateX(-100%); /* CACHÉE par défaut */
+    }
+
+    .custom-sidebar.mobile-visible {
+        transform: translateX(0); /* Visible quand ouverte */
+        box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+    }
+
+    .nav-text {
+        display: inline; /* Texte visible sur mobile */
+    }
+
+    .main-content-container {
+        margin-left: 0 !important;
+    }
+}
+
+/* TABLETTE (768px - 1339px) */
+@media (min-width: 768px) and (max-width: 1339px) {
+    .mobile-toggle-btn {
+        display: none !important; /* Pas de bouton sur tablette */
+    }
+
+    .custom-sidebar {
+        width: 60px; /* Sidebar compacte */
+        transform: translateX(0); /* TOUJOURS visible */
+    }
+
+    .custom-sidebar:hover {
+        width: 250px; /* S'étend au survol */
+        box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+    }
+
+    .nav-text {
+        display: none; /* Texte caché par défaut */
+    }
+
+    .custom-sidebar:hover .nav-text {
+        display: inline; /* Texte visible au survol */
+    }
+
+    .main-content-container {
+        margin-left: 60px !important;
+    }
+}
+
+/* DESKTOP (≥1340px) */
+@media (min-width: 1340px) {
+    .mobile-toggle-btn {
+        display: none !important; /* Pas de bouton sur desktop */
+    }
+
+    .custom-sidebar {
+        width: 250px; /* Sidebar étendue */
+        transform: translateX(0); /* TOUJOURS visible */
+    }
+
+    .nav-text {
+        display: inline; /* Texte toujours visible */
+    }
+
+    .main-content-container {
+        margin-left: 250px !important;
+    }
+}
+
+/* === STYLES DES MENUS === */
+
+.nav-item {
+    margin-bottom: 4px;
+}
+
+.nav-link,
+.submenu-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    color: #212529; /* Texte noir */
+    text-decoration: none;
+    border-radius: 8px;
+    margin: 2px 0;
+    cursor: pointer;
+    background: #c7e1f796; /* Fond bleu clair */
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.nav-link:hover,
+.submenu-link:hover {
+    background: #90dbf9; /* Bleu plus foncé au survol */
+    color: #212529; /* Texte reste noir */
+    transform: translateX(3px);
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+.nav-link.active,
+.submenu-link.active {
+    background: #64b5f6; /* Bleu actif */
+    color: #212529; /* Texte reste noir */
+    box-shadow: 0 3px 10px rgba(33, 150, 243, 0.4);
+}
+
+.nav-icon {
+    font-size: 16px;
+    margin-right: 12px;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    color: #212529; /* Icônes noires */
+}
+
+.nav-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #212529; /* Texte noir */
+    transition: opacity 0.3s ease;
+}
+
+/* Sous-menus */
+.submenu {
+    margin-left: 20px;
+    margin-top: 5px;
+}
+
+.submenu-link {
+    padding: 8px 16px;
+    font-size: 13px;
+    background: #b3e5fc; /* Fond plus clair pour sous-menus */
+    border-left: 3px solid transparent;
+}
+
+.submenu-link:hover {
+    background: #81d4fa;
+    border-left: 3px solid #2196f3;
+}
+
+.submenu-link.active {
+    background: #4fc3f7;
+    border-left: 3px solid #1976d2;
+}
+
+/* Scrollbar */
+.custom-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-sidebar::-webkit-scrollbar-track {
+    background: #e3f2fd;
+}
+
+.custom-sidebar::-webkit-scrollbar-thumb {
+    background: #90caf9;
+    border-radius: 3px;
+}
+
+.custom-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #64b5f6;
+}

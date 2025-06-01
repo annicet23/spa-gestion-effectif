@@ -1,440 +1,636 @@
-// src/pages/CreateCadrePage.jsx
 import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { useAuth } from '../context/AuthContext'; // Pour accéder au token si l'API nécessite authentification
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { useAuth } from '../context/AuthContext';
 
 function CreateCadrePage() {
-   const { token } = useAuth(); // Récupérer le token
-   // TODO: Dans une vraie application, vous devriez charger les listes des services depuis votre API backend
-   const [services, setServices] = useState([]); // Pour stocker les options de service
-   // TODO: Vous devrez aussi charger la liste des "Cours" (Escadrons) si l'entité est "COURS"
-   const [coursOptions, setCoursOptions] = useState([]); // Pour stocker les options de Cours/Escadrons
+    const { token } = useAuth();
+    const [services, setServices] = useState([]);
+    const [coursOptions, setCoursOptions] = useState([]);
 
-  const [formData, setFormData] = useState({
-    grade: '',
-    nom: '',
-    prenom: '',
-    matricule: '',
-    service: '', // Ce sera la valeur sélectionnée du menu déroulant Service (dépend de l'entité)
-    numero_telephone: '',
-    fonction: '',
-    entite: 'Service', // Renommé de responsibility_scope à entite, valeur par défaut 'Service'
-    cours: '', // Renommé de responsible_escadron_id à cours
-    sexe: '', // Champ Sexe
-  });
-  const [message, setMessage] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
+    const [formData, setFormData] = useState({
+        grade: '',
+        nom: '',
+        prenom: '',
+        matricule: '',
+        service: '',
+        numero_telephone: '',
+        isWhatsappPrincipal: false,
+        fonction: '',
+        entite: 'Service',
+        cours: '',
+        sexe: '',
+        date_naissance: null,
+        lieu_naissance: '',
+        cfeg: '',
+        date_sejour_egna: null,
+        situation_familiale: '',
+        nombre_enfants: 0,
+        email: '',
+        photo: null,
+        date_nomination: null,
+    });
+    const [autresTelephones, setAutresTelephones] = useState([]);
 
-   // Charger les options pour les menus déroulants au chargement du composant
-   useEffect(() => {
-       // TODO: Remplacer par un appel API réel pour charger les services
-       // Exemple simulé :
-       const fetchServices = async () => {
-           // const response = await fetch('http://localhost:3000/api/services', { headers: { 'Authorization': `Bearer ${token}` } });
-           // if (response.ok) {
-           //     const data = await response.json();
-           //     setServices(data); // Assurez-vous que data est un tableau d'objets { id, nom }
-           // } else {
-           //      console.error("Erreur lors du chargement des services");
-           // }
-           // Options simulées
-           const simulatedServices = [
-    { id: 1, nom: 'CAB' },
-    { id: 2, nom: 'DI' },
-    { id: 3, nom: 'SAF' },
-    { id: 4, nom: 'ST' },
-    { id: 5, nom: 'SM' },
-    { id: 6, nom: 'COURS A' },
-    { id: 7, nom: 'COURS B' },
-    { id: 8, nom: 'SED' },
-    { id: 9, nom: 'SRH' },
-    { id: 10, nom: 'PEDA' },
-    { id: 11, nom: 'SSL' },
-    { id: 12, nom: 'MATR' },
-    { id: 13, nom: 'TELECOM' },
-    { id: 14, nom: 'ARM' },
-    { id: 15, nom: 'PDS' },
-    { id: 16, nom: 'INFR' },
-    { id: 17, nom: 'PIF' },
-    { id: 18, nom: 'INFO' },
-    { id: 19, nom: 'SE' }
-];
-           setServices(simulatedServices);
-       };
+    const [message, setMessage] = useState('');
+    const [isSuccess, setIsSuccess] = useState(false);
 
-        // TODO: Remplacer par un appel API réel pour charger les Cours (Escadrons)
-        const fetchCours = async () => {
-           // const response = await fetch('http://localhost:3000/api/escadrons', { headers: { 'Authorization': `Bearer ${token}` } });
-           // if (response.ok) {
-           //     const data = await response.json();
-           //     setCoursOptions(data); // Assurez-vous que data est un tableau d'objets { id, nom, numero }
-           // } else {
-           //      console.error("Erreur lors du chargement des Cours/Escadrons");
-           // }
-           // Options simulées (1 à 10)
-           const simulatedCours = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, numero: i + 1, nom: `Escadron ${i + 1}` }));
-           setCoursOptions(simulatedCours);
+    useEffect(() => {
+        const fetchServices = async () => {
+            const simulatedServices = [
+                { id: 1, nom: 'CAB' }, { id: 2, nom: 'DI' }, { id: 3, nom: 'SAF' },
+                { id: 4, nom: 'ST' }, { id: 5, nom: 'SM' }, { id: 6, nom: 'COURS A' },
+                { id: 7, nom: 'COURS B' }, { id: 8, nom: 'SED' }, { id: 9, nom: 'SRH' },
+                { id: 10, nom: 'PEDA' }, { id: 11, nom: 'SSL' }, { id: 12, nom: 'MATR' },
+                { id: 13, nom: 'TELECOM' }, { id: 14, nom: 'ARM' }, { id: 15, nom: 'PDS' },
+                { id: 16, nom: 'INFR' }, { id: 17, nom: 'PIF' }, { id: 18, nom: 'INFO' },
+                { id: 19, nom: 'SE' }
+            ];
+            setServices(simulatedServices);
         };
 
+        const fetchCours = async () => {
+            const simulatedCours = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, numero: i + 1, nom: `Escadron ${i + 1}` }));
+            setCoursOptions(simulatedCours);
+        };
 
-       fetchServices();
-       fetchCours(); // Charger aussi les options de Cours
+        fetchServices();
+        fetchCours();
+    }, [token]);
 
-       // TODO: La logique d'ajout/suppression d'options pour les menus déroulants (Services, Cours)
-       // devrait être gérée dans une page d'administration dédiée, pas ici dans le formulaire de création.
-       // Les formulaires devraient simplement charger les options disponibles depuis l'API.
+    const handleInputChange = (e) => {
+        const { name, value, type, files, checked } = e.target;
 
-   }, [token]); // Déclenche l'effet lorsque le token change (connexion/déconnexion)
+        if (name === 'photo') {
+            setFormData({ ...formData, [name]: files[0] });
+        } else if (name === 'isWhatsappPrincipal') {
+            if (checked) {
+                const updatedAutresTelephones = autresTelephones.map(tel => ({ ...tel, isWhatsapp: false }));
+                setAutresTelephones(updatedAutresTelephones);
+            }
+            setFormData({ ...formData, [name]: checked });
+        }
+        else {
+            const newValue = type === 'number' ? parseInt(value, 10) : value;
 
+            if (name === 'entite') {
+                setFormData(prevFormData => ({
+                    ...prevFormData,
+                    [name]: newValue,
+                    service: newValue !== 'Service' ? '' : prevFormData.service,
+                    cours: newValue !== 'Escadron' ? '' : prevFormData.cours,
+                }));
+            } else {
+                setFormData({ ...formData, [name]: newValue });
+            }
+        }
+    };
 
-  // Gère les changements dans les champs du formulaire
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-
-    // Logique spécifique si le champ "entite" change
-    if (name === 'entite') {
+    const handleDateChange = (date, name) => {
         setFormData(prevFormData => ({
             ...prevFormData,
-            [name]: value,
-            // Si l'entité change et n'est plus 'Service', réinitialiser le champ 'service'
-            service: value !== 'Service' ? '' : prevFormData.service,
-            // Si l'entité change et n'est plus 'Escadron' (la valeur réelle pour COURS), réinitialiser le champ 'cours'
-            cours: value !== 'Escadron' ? '' : prevFormData.cours, // <-- Utiliser 'Escadron' ici
+            [name]: date
         }));
-    } else {
-        // Pour tous les autres champs, mettre à jour normalement
-        setFormData({ ...formData, [name]: value });
-    }
-  };
+    };
 
-  // Gère la soumission du formulaire
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage(''); // Réinitialiser les messages
+    const handleOtherTelephoneChange = (index, field, value) => {
+        const newAutresTelephones = [...autresTelephones];
+        newAutresTelephones[index][field] = value;
 
-    if (!token) {
-         setMessage("Erreur: Utilisateur non authentifié.");
-         setIsSuccess(false);
-         return;
-    }
+        if (field === 'isWhatsapp' && value === true) {
+            setFormData(prevFormData => ({ ...prevFormData, isWhatsappPrincipal: false }));
+            newAutresTelephones.forEach((tel, i) => {
+                if (i !== index) {
+                    tel.isWhatsapp = false;
+                }
+            });
+        }
+        setAutresTelephones(newAutresTelephones);
+    };
 
-     // --- Validation Côté Frontend ---
-     console.log('Valeur de formData.entite avant validation :', formData.entite); // Gardons le log pour l'instant
+    const handleAddTelephone = () => {
+        setAutresTelephones([...autresTelephones, { numero: '', isWhatsapp: false }]);
+    };
 
-     // Vérifier les champs toujours requis (basé sur ce qui DOIT être dans la DB et le modèle Sequelize)
-    if (!formData.grade || !formData.nom || !formData.prenom || !formData.matricule || !formData.entite || !formData.sexe) { // Assurez-vous que 'sexe' est requis si c'est le cas dans votre modèle/DB
-        setMessage("Veuillez remplir tous les champs requis (Grade, Nom, Prénom, Matricule, Entité, Sexe).");
-        setIsSuccess(false);
-        return;
-    }
+    const handleRemoveTelephone = (index) => {
+        const newAutresTelephones = autresTelephones.filter((_, i) => i !== index);
+        setAutresTelephones(newAutresTelephones);
+    };
 
-    // Vérifier les champs requis conditionnellement basés sur l'entité
-    if (formData.entite === 'Service') {
-        if (!formData.service) {
-            setMessage("Veuillez sélectionner un service si l'entité est 'Service'.");
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setMessage('');
+
+        if (!token) {
+            setMessage("Erreur: Utilisateur non authentifié.");
             setIsSuccess(false);
             return;
         }
-    } else if (formData.entite === 'Escadron') { // <-- Utiliser 'Escadron' ici pour la validation
-        if (!formData.cours) {
-             // Assurez-vous que 'cours' est bien l'ID de l'escadron
-             // Vous pourriez vouloir vérifier ici si l'ID de l'escadron existe réellement dans votre table Escadrons
-             // const escadronExiste = await Escadron.findByPk(cours);
-             // if (!escadronExiste) { return res.status(400).json({ message: "L'escadron sélectionné n'existe pas." }); }
-            setMessage("Veuillez sélectionner un Escadron si l'entité est 'COURS'."); // Message peut rester "COURS"
+
+        console.log('Valeur de formData.entite avant validation :', formData.entite);
+
+        if (!formData.grade || !formData.nom || !formData.prenom || !formData.matricule || !formData.entite || !formData.sexe ||
+            !formData.date_naissance || !formData.lieu_naissance || !formData.cfeg || !formData.date_sejour_egna ||
+            !formData.situation_familiale || !formData.numero_telephone || !formData.email || !formData.date_nomination) {
+            setMessage("Veuillez remplir tous les champs obligatoires (Grade, Nom, Prénom, Matricule, Entité, Sexe, Date de Naissance, Lieu de Naissance, CFEG, Date de séjour à EGNA, Situation Familiale, Numéro de Téléphone principal, Email, Date de Nomination).");
             setIsSuccess(false);
             return;
         }
-    } else {
-        // Ce bloc NE DEVRAIT PAS ÊTRE ATTEINT si les options du select sont correctes.
-        // Le message "Valeur d'entité invalide" ne vient pas d'ici.
-        setMessage('Erreur interne : Valeur d\'entité inattendue.');
-        setIsSuccess(false);
-        return;
-    }
 
-    // TODO: Validation supplémentaire côté frontend si nécessaire (format téléphone, etc.)
-    // --- Fin Validation Côté Frontend ---
+        if (isNaN(formData.nombre_enfants) || formData.nombre_enfants < 0) {
+            setMessage("Le nombre d'enfants doit être un nombre positif.");
+            setIsSuccess(false);
+            return;
+        }
 
-    // --- Préparation des données pour le Backend ---
-    const dataToSend = { ...formData }; // Créer une copie pour ne pas modifier l'état directement
-
-    if (dataToSend.entite === 'Escadron') {
-        // Si l'entité est 'Escadron', le champ 'service' doit être null pour le backend
-        dataToSend.service = null;
-        // Convertir l'ID de l'escadron en nombre entier si ce n'est pas déjà fait
-        // Assurez-vous que dataToSend.cours n'est pas une chaîne vide avant de convertir
-        if (dataToSend.cours !== '') {
-            dataToSend.cours = parseInt(dataToSend.cours, 10);
-            // Vérifier si la conversion a réussi (pas NaN)
-            if (isNaN(dataToSend.cours)) {
-                 setMessage("Erreur: L'ID de l'Escadron sélectionné est invalide.");
-                 setIsSuccess(false);
-                 return; // Arrêter la soumission si l'ID est invalide
+        if (formData.entite === 'Service') {
+            if (!formData.service) {
+                setMessage("Veuillez sélectionner un service si l'entité est 'Service'.");
+                setIsSuccess(false);
+                return;
+            }
+        } else if (formData.entite === 'Escadron') {
+            if (!formData.cours) {
+                setMessage("Veuillez sélectionner un Escadron si l'entité est 'COURS'.");
+                setIsSuccess(false);
+                return;
             }
         } else {
-             // Si cours est vide malgré la validation, c'est une erreur logique, mais gérée par la validation ci-dessus
-             // On peut le laisser comme chaîne vide si le backend gère ça, ou le mettre à null/undefined
-             // Pour l'instant, la validation frontend devrait empêcher d'arriver ici avec cours vide si entite est Escadron
+            setMessage('Erreur interne : Valeur d\'entité inattendue.');
+            setIsSuccess(false);
+            return;
         }
-    } else if (dataToSend.entite === 'Service') {
-        // Si l'entité est 'Service', le champ 'cours' (responsible_escadron_id) doit être null pour le backend
-        dataToSend.cours = null;
-         // Le champ 'service' est déjà une chaîne (nom du service), ce qui devrait être correct.
-    }
-     // TODO: Si vous avez une option 'None' pour l'entité, ajoutez une logique ici pour mettre service et cours à null
 
-    console.log('Données envoyées au backend :', dataToSend); // Utile pour le debug
-    // --- Fin Préparation des données ---
-
-
-    try {
-      // TODO: Remplacer l'URL par votre endpoint backend pour créer un cadre
-      // Assurez-vous que votre endpoint backend (/api/cadres) accepte ces champs (y compris 'sexe')
-      const response = await fetch('http://localhost:3000/api/cadres', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Inclure le token JWT
-        },
-        // Envoyer les données préparées
-        body: JSON.stringify(dataToSend),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setMessage(result.message || 'Cadre créé avec succès !');
-        setIsSuccess(true);
-        // Réinitialiser le formulaire après succès
-        setFormData({
-             grade: '',
-             nom: '',
-             prenom: '',
-             matricule: '',
-             service: '', // Réinitialiser le service
-             numero_telephone: '',
-             fonction: '',
-             entite: 'Service', // Réinitialiser à la valeur par défaut
-             cours: '', // Réinitialiser le cours
-             sexe: '', // Réinitialiser le sexe
+        const allPhones = [
+            { numero: formData.numero_telephone, isWhatsapp: formData.isWhatsappPrincipal }
+        ];
+        autresTelephones.forEach(tel => {
+            if (tel.numero.trim() !== '') {
+                allPhones.push(tel);
+            }
         });
-      } else {
-        // Afficher le message d'erreur du backend si disponible
-        setMessage(result.message || `Échec de la création du cadre. Statut : ${response.status}`);
-        setIsSuccess(false);
-      }
-    } catch (error) {
-      console.error('Erreur lors de la soumission du formulaire :', error);
-      setMessage('Une erreur est survenue lors de la création du cadre.');
-      setIsSuccess(false);
-    }
-  };
+        const whatsappNumbersCount = allPhones.filter(p => p.isWhatsapp && p.numero.trim() !== '').length;
 
-  return (
-    <div className="container mt-4">
-      <h1 className="mb-4">Ajouter un nouveau Cadre</h1>
+        if (whatsappNumbersCount > 1) {
+            setMessage("Vous ne pouvez marquer qu'un seul numéro comme numéro WhatsApp.");
+            setIsSuccess(false);
+            return;
+        }
 
-      <div className="card">
-        <div className="card-body">
-          <form onSubmit={handleSubmit}>
+        const data = new FormData();
 
-            {/* Utilisation de la grille Bootstrap pour aligner les champs */}
-            <div className="row">
-              {/* Champ Grade (prend la moitié de la largeur sur les écrans moyens et plus grands) */}
-              <div className="col-md-6 mb-3">
-                <label htmlFor="grade" className="form-label">Grade</label>
-                <input
-                  type="text" // TODO: Idéalement, un menu déroulant si les grades sont fixes
-                  className="form-control"
-                  id="grade"
-                  name="grade"
-                  value={formData.grade}
-                  onChange={handleInputChange}
-                  required // Rendu obligatoire
-                />
-              </div>
-              {/* Champ Matricule (prend 1/3 de la largeur sur les écrans moyens et plus grands) */}
-               <div className="col-md-6 mb-3"> {/* Taille réduite */}
-                <label htmlFor="matricule" className="form-label">Matricule</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="matricule"
-                  name="matricule"
-                  value={formData.matricule}
-                  onChange={handleInputChange}
-                  required // Rendu obligatoire
-                  maxLength="5" // Limiter la saisie à 5 chiffres si c'est un nombre
-                />
-              </div>
-            </div> {/* Fin de la première ligne */}
+        for (const key in formData) {
+            if (key === 'photo') {
+                if (formData[key]) {
+                    data.append('photo', formData[key]);
+                }
+            } else if (key === 'isWhatsappPrincipal' || key === 'numero_telephone') {
+                continue;
+            } else if (['date_naissance', 'date_sejour_egna', 'date_nomination'].includes(key)) {
+                if (formData[key]) {
+                    data.append(key, formData[key].toISOString().substring(0, 10));
+                } else {
+                    data.append(key, '');
+                }
+            } else if (key === 'cours' && formData.entite === 'Escadron' && formData[key] !== '') {
+                data.append('responsible_escadron_id', parseInt(formData[key], 10));
+            } else if (key === 'service' && formData.entite === 'Service') {
+                data.append('service', formData[key]);
+            } else {
+                data.append(key, formData[key]);
+            }
+        }
 
-            <div className="row">
-              {/* Champ Nom (prend la moitié de la largeur sur les écrans moyens et plus grands) */}
-              <div className="col-md-6 mb-3">
-                <label htmlFor="nom" className="form-label">Nom</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="nom"
-                  name="nom"
-                  value={formData.nom}
-                  onChange={handleInputChange}
-                  required // Rendu obligatoire
-                />
-              </div>
-              {/* Champ Prénom (prend la moitié de la largeur sur les écrans moyens et plus grands) */}
-              <div className="col-md-6 mb-3">
-                <label htmlFor="prenom" className="form-label">Prénom</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="prenom"
-                  name="prenom"
-                  value={formData.prenom}
-                  onChange={handleInputChange}
-                  required // Rendu obligatoire
-                />
-              </div>
-            </div> {/* Fin de la deuxième ligne */}
+        data.append('telephones', JSON.stringify(allPhones));
 
-             <div className="row">
-                {/* Champ Entité (Menu déroulant, prend la moitié de la largeur) */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="entite" className="form-label">Entité</label> {/* Label renommé */}
-                 <select
-                   className="form-select"
-                   id="entite"
-                   name="entite"
-                   value={formData.entite}
-                   onChange={handleInputChange}
-                   required // Rendu obligatoire
-                 >
-                   {/* Options avec labels et VALEURS corrigées */}
-                   <option value="Service">Service</option>
-                   <option value="Escadron">COURS</option> {/* <-- value est 'Escadron', label est 'COURS' */}
-                   {/* TODO: Si vous voulez l'option 'None', ajoutez-la ici : <option value="None">Aucun</option> */}
-                 </select>
-               </div>
-               {/* Champ Service (Menu déroulant, prend la moitié de la largeur) - Dépend de l'entité */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="service" className="form-label">Service</label>
-                 <select
-                   className="form-select" // Classe Bootstrap pour les sélecteurs
-                   id="service"
-                   name="service"
-                   value={formData.service}
-                   onChange={handleInputChange}
-                   disabled={formData.entite !== 'Service'} // Désactiver si l'entité n'est PAS 'Service'
-                   required={formData.entite === 'Service'} // Rendre obligatoire UNIQUEMENT si l'entité est 'Service'
-                 >
-                   <option value="">-- Sélectionner un service --</option> {/* Option par défaut */}
-                   {/* Mapper les options de service chargées */}
-                   {services.map(service => (
-                     <option key={service.id} value={service.nom}> {/* Utiliser le nom du service comme valeur */}
-                       {service.nom}
-                     </option>
-                   ))}
-                 </select>
-                 {/* TODO: La logique d'ajout/suppression de services devrait être dans une page d'administration séparée */}
-               </div>
-             </div> {/* Fin de la troisième ligne */}
+        console.log('Données envoyées au backend (FormData) :');
+        for (let pair of data.entries()) {
+            console.log(pair[0] + ', ' + pair[1]);
+        }
 
-             <div className="row">
-               {/* Champ Fonction (prend la moitié de la largeur) */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="fonction" className="form-label">Fonction</label>
-                 <input
-                   type="text"
-                   className="form-control"
-                   id="fonction"
-                   name="fonction"
-                   value={formData.fonction}
-                   onChange={handleInputChange}
-                   required // Rendu obligatoire
-                 />
-               </div>
-                {/* Champ COURS (Menu déroulant, prend la moitié de la largeur) - Visible si entité est 'Escadron' */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="cours" className="form-label">Escadron</label> {/* Label "COURS" remplacé par "Escadron" */}
-                 {/* Remplacer par un sélecteur d'escadron existant si entité est 'Escadron' */}
-                 <select // Changé en <select>
-                   className="form-select"
-                   id="cours"
-                   name="cours"
-                   value={formData.cours}
-                   onChange={handleInputChange}
-                   disabled={formData.entite !== 'Escadron'} // Désactiver si entité n'est pas Escadron
-                   required={formData.entite === 'Escadron'} // Rendre obligatoire UNIQUEMENT si entité est Escadron
-                 >
-                    <option value="">-- Sélectionner un Escadron --</option> {/* Option par défaut, label mis à jour */}
-                    {/* Mapper les options de Cours/Escadrons chargées */}
-                   {coursOptions.map(cours => (
-                     <option key={cours.id} value={cours.id}> {/* Utiliser l'ID comme valeur */}
-                       {cours.numero} - {cours.nom} {/* Afficher numéro et nom */}
-                     </option>
-                   ))}
-                 </select>
-                 {/* TODO: La logique d'ajout/suppression de Cours (Escadrons) devrait être dans une page d'administration séparée */}
-               </div>
-             </div> {/* Fin de la quatrième ligne */}
+        try {
+            const response = await fetch('http://localhost:3000/api/cadres', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: data,
+            });
 
-              <div className="row">
-                {/* Champ Sexe (Menu déroulant, prend la moitié de la largeur) */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="sexe" className="form-label">Sexe</label> {/* <-- NOUVEAU LABEL */}
-                 <select
-                   className="form-select"
-                   id="sexe"
-                   name="sexe"
-                   value={formData.sexe}
-                   onChange={handleInputChange}
-                   required // Rendu obligatoire
-                 >
-                   <option value="">-- Sélectionner le sexe --</option> {/* Option par défaut */}
-                   <option value="Masculin">Masculin</option> {/* <-- Utiliser les valeurs exactes de l'ENUM de la DB */}
-                   <option value="Féminin">Féminin</option> {/* <-- Utiliser les valeurs exactes de l'ENUM de la DB */}
-                   {/* TODO: Adapter si votre ENUM Sexe a d'autres valeurs */}
-                 </select>
-               </div>
-                 {/* Champ Numéro de Téléphone (prend la moitié de la largeur sur les écrans moyens et plus grands) */}
-               <div className="col-md-6 mb-3"> {/* Taille ajustée */}
-                 <label htmlFor="numero_telephone" className="form-label">Numéro de Téléphone</label>
-                 <input
-                   type="text" // Ou 'tel' si vous voulez utiliser le type tel
-                   className="form-control"
-                   id="numero_telephone"
-                   name="numero_telephone"
-                   value={formData.numero_telephone}
-                   onChange={handleInputChange}
-                   required // Rendu obligatoire
-                 />
-               </div>
-             </div> {/* Fin de la cinquième ligne */}
+            const result = await response.json();
 
+            if (response.ok) {
+                setMessage(result.message || 'Cadre créé avec succès !');
+                setIsSuccess(true);
+                setFormData({
+                    grade: '', nom: '', prenom: '', matricule: '', service: '',
+                    numero_telephone: '', isWhatsappPrincipal: false, fonction: '',
+                    entite: 'Service', cours: '', sexe: '', date_naissance: null,
+                    lieu_naissance: '', cfeg: '', date_sejour_egna: null,
+                    situation_familiale: '', nombre_enfants: 0, email: '',
+                    photo: null, date_nomination: null,
+                });
+                setAutresTelephones([]);
+            } else {
+                setMessage(result.message || `Échec de la création du cadre. Statut : ${response.status}`);
+                setIsSuccess(false);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la soumission du formulaire :', error);
+            setMessage('Une erreur est survenue lors de la création du cadre.');
+            setIsSuccess(false);
+        }
+    };
 
-            {/* TODO: Ajouter d'autres champs ici en utilisant des rows et cols si nécessaire */}
+    return (
+        <div className="container mt-4">
+            <h1 className="mb-4 text-center">Ajouter un nouveau Cadre</h1>
 
+            <div className="card shadow-lg rounded-3">
+                <div className="card-body p-4">
+                    <form onSubmit={handleSubmit}>
 
-            {/* Bouton de soumission (centré) */}
-             <div className="mb-3 text-center"> {/* Utilisation de text-center pour centrer le contenu */}
-                <button type="submit" className="btn btn-primary">Créer Cadre</button>
-             </div>
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="grade" className="form-label">Grade</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="grade"
+                                    name="grade"
+                                    value={formData.grade}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="matricule" className="form-label">Matricule</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="matricule"
+                                    name="matricule"
+                                    value={formData.matricule}
+                                    onChange={handleInputChange}
+                                    required
+                                    maxLength="5"
+                                />
+                            </div>
+                        </div>
 
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="nom" className="form-label">Nom</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="nom"
+                                    name="nom"
+                                    value={formData.nom}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="prenom" className="form-label">Prénom</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="prenom"
+                                    name="prenom"
+                                    value={formData.prenom}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                        </div>
 
-          </form>
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="entite" className="form-label">Entité</label>
+                                <select
+                                    className="form-select rounded-pill"
+                                    id="entite"
+                                    name="entite"
+                                    value={formData.entite}
+                                    onChange={handleInputChange}
+                                    required
+                                >
+                                    <option value="Service">Service</option>
+                                    <option value="Escadron">COURS</option>
+                                </select>
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="service" className="form-label">Service</label>
+                                <select
+                                    className="form-select rounded-pill"
+                                    id="service"
+                                    name="service"
+                                    value={formData.service}
+                                    onChange={handleInputChange}
+                                    disabled={formData.entite !== 'Service'}
+                                    required={formData.entite === 'Service'}
+                                >
+                                    <option value="">-- Sélectionner un service --</option>
+                                    {services.map(service => (
+                                        <option key={service.id} value={service.nom}>
+                                            {service.nom}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
 
-          {/* Affichage du message de succès ou d'erreur */}
-          {message && (
-            <div className={`alert mt-3 ${isSuccess ? 'alert-success' : 'alert-danger'}`} role="alert">
-              {message}
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="fonction" className="form-label">Fonction</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="fonction"
+                                    name="fonction"
+                                    value={formData.fonction}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="cours" className="form-label">Escadron</label>
+                                <select
+                                    className="form-select rounded-pill"
+                                    id="cours"
+                                    name="cours"
+                                    value={formData.cours}
+                                    onChange={handleInputChange}
+                                    disabled={formData.entite !== 'Escadron'}
+                                    required={formData.entite === 'Escadron'}
+                                >
+                                    <option value="">-- Sélectionner un Escadron --</option>
+                                    {coursOptions.map(cours => (
+                                        <option key={cours.id} value={cours.id}>
+                                            {cours.numero} - {cours.nom}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="sexe" className="form-label">Sexe</label>
+                                <select
+                                    className="form-select rounded-pill"
+                                    id="sexe"
+                                    name="sexe"
+                                    value={formData.sexe}
+                                    onChange={handleInputChange}
+                                    required
+                                >
+                                    <option value="">-- Sélectionner le sexe --</option>
+                                    <option value="Masculin">Masculin</option>
+                                    <option value="Féminin">Féminin</option>
+                                </select>
+                            </div>
+                            {/* Numéro de Téléphone Principal avec case à cocher WhatsApp */}
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="numero_telephone" className="form-label">Numéro de Téléphone Principal</label>
+                                <div className="input-group rounded-pill overflow-hidden border border-gray-300">
+                                    <input
+                                        type="text"
+                                        className="form-control border-0 focus:shadow-none"
+                                        id="numero_telephone"
+                                        name="numero_telephone"
+                                        value={formData.numero_telephone}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                    <div className="input-group-text bg-white border-0">
+                                        <input
+                                            className="form-check-input mt-0"
+                                            type="checkbox"
+                                            id="isWhatsappPrincipal"
+                                            name="isWhatsappPrincipal"
+                                            checked={formData.isWhatsappPrincipal}
+                                            onChange={handleInputChange}
+                                            aria-label="WhatsApp"
+                                        />
+                                        <label className="form-check-label ms-2" htmlFor="isWhatsappPrincipal">WhatsApp</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* CHAMPS DE NUMÉROS DE TÉLÉPHONE SUPPLÉMENTAIRES */}
+                        {autresTelephones.map((tel, index) => (
+                            <div className="row" key={index}>
+                                <div className="col-md-6 offset-md-6 mb-3 d-flex align-items-end">
+                                    <div className="input-group flex-grow-1 me-2 rounded-pill overflow-hidden border border-gray-300">
+                                        <input
+                                            type="text"
+                                            className="form-control border-0 focus:shadow-none"
+                                            id={`autre_telephone_${index}`}
+                                            name={`autre_telephone_${index}`}
+                                            value={tel.numero}
+                                            onChange={(e) => handleOtherTelephoneChange(index, 'numero', e.target.value)}
+                                            placeholder={`Autre Numéro ${index + 1}`}
+                                        />
+                                        <div className="input-group-text bg-white border-0">
+                                            <input
+                                                className="form-check-input mt-0"
+                                                type="checkbox"
+                                                id={`isWhatsappOther_${index}`}
+                                                name={`isWhatsappOther_${index}`}
+                                                checked={tel.isWhatsapp}
+                                                onChange={(e) => handleOtherTelephoneChange(index, 'isWhatsapp', e.target.checked)}
+                                                aria-label="WhatsApp"
+                                            />
+                                            <label className="form-check-label ms-2" htmlFor={`isWhatsappOther_${index}`}>WhatsApp</label>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-danger rounded-pill"
+                                        onClick={() => handleRemoveTelephone(index)}
+                                        title="Supprimer ce numéro"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        <div className="row">
+                            <div className="col-md-6 offset-md-6 mb-3 d-flex justify-content-end">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-secondary rounded-pill"
+                                    onClick={handleAddTelephone}
+                                >
+                                    Ajouter un autre numéro
+                                </button>
+                            </div>
+                        </div>
+
+                        ---
+
+                        <h4 className="mb-3 text-center">Informations Personnelles Supplémentaires</h4>
+
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="date_naissance" className="form-label">Date de Naissance</label>
+                                <DatePicker
+                                    selected={formData.date_naissance}
+                                    onChange={(date) => handleDateChange(date, 'date_naissance')}
+                                    dateFormat="yyyy-MM-dd"
+                                    className="form-control rounded-pill"
+                                    id="date_naissance"
+                                    name="date_naissance"
+                                    required
+                                    placeholderText="Sélectionner une date"
+                                    showYearDropdown
+                                    showMonthDropdown
+                                    dropdownMode="select"
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="lieu_naissance" className="form-label">Lieu de Naissance</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="lieu_naissance"
+                                    name="lieu_naissance"
+                                    value={formData.lieu_naissance}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="cfeg" className="form-label">CFEG</label>
+                                <input
+                                    type="text"
+                                    className="form-control rounded-pill"
+                                    id="cfeg"
+                                    name="cfeg"
+                                    value={formData.cfeg}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="date_sejour_egna" className="form-label">Date de Séjour à EGNA</label>
+                                <DatePicker
+                                    selected={formData.date_sejour_egna}
+                                    onChange={(date) => handleDateChange(date, 'date_sejour_egna')}
+                                    dateFormat="yyyy-MM-dd"
+                                    className="form-control rounded-pill"
+                                    id="date_sejour_egna"
+                                    name="date_sejour_egna"
+                                    required
+                                    placeholderText="Sélectionner une date"
+                                    showYearDropdown
+                                    showMonthDropdown
+                                    dropdownMode="select"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="situation_familiale" className="form-label">Situation Familiale</label>
+                                <select
+                                    className="form-select rounded-pill"
+                                    id="situation_familiale"
+                                    name="situation_familiale"
+                                    value={formData.situation_familiale}
+                                    onChange={handleInputChange}
+                                    required
+                                >
+                                    <option value="">-- Sélectionner la situation --</option>
+                                    <option value="Celibataire">Célibataire</option>
+                                    <option value="Marié">Marié(e)</option>
+                                    <option value="Divorcé">Divorcé(e)</option>
+                                </select>
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="nombre_enfants" className="form-label">Nombre d'enfants</label>
+                                <input
+                                    type="number"
+                                    className="form-control rounded-pill"
+                                    id="nombre_enfants"
+                                    name="nombre_enfants"
+                                    value={formData.nombre_enfants}
+                                    onChange={handleInputChange}
+                                    min="0"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="row">
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="email" className="form-label">Email</label>
+                                <input
+                                    type="email"
+                                    className="form-control rounded-pill"
+                                    id="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            <div className="col-md-6 mb-3">
+                                <label htmlFor="date_nomination" className="form-label">Date de Nomination</label>
+                                <DatePicker
+                                    selected={formData.date_nomination}
+                                    onChange={(date) => handleDateChange(date, 'date_nomination')}
+                                    dateFormat="yyyy-MM-dd"
+                                    className="form-control rounded-pill"
+                                    id="date_nomination"
+                                    name="date_nomination"
+                                    required
+                                    placeholderText="Sélectionner une date"
+                                    showYearDropdown
+                                    showMonthDropdown
+                                    dropdownMode="select"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="row">
+                            <div className="col-md-12 mb-3">
+                                <label htmlFor="photo" className="form-label">Photo</label>
+                                <input
+                                    type="file"
+                                    className="form-control rounded-pill"
+                                    id="photo"
+                                    name="photo"
+                                    onChange={handleInputChange}
+                                    accept="image/*"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="text-center mt-4">
+                            <button type="submit" className="btn btn-primary btn-lg rounded-pill px-5 shadow-lg" style={{ background: 'linear-gradient(to right, #ff8c00, #ff4500)', border: 'none' }}>
+                                Créer Cadre
+                            </button>
+                        </div>
+
+                    </form>
+
+                    {message && (
+                        <div className={`alert mt-4 text-center ${isSuccess ? 'alert-success' : 'alert-danger'}`} role="alert">
+                            {message}
+                        </div>
+                    )}
+                </div>
             </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default CreateCadrePage;

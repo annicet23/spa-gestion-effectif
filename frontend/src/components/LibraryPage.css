@@ -1,0 +1,480 @@
+/* ===== BIBLIOTHÈQUE GESPA - STYLES MODERNES ===== */
+
+/* Variables */
+:root {
+    --library-primary: #007bff;
+    --library-secondary: #6c757d;
+    --library-success: #28a745;
+    --library-danger: #dc3545;
+    --library-warning: #ffc107;
+    --library-info: #17a2b8;
+    --library-light: #f8f9fa;
+    --library-dark: #343a40;
+    --library-transition: all 0.3s ease;
+    --library-border-radius: 12px;
+    --library-shadow: 0 4px 20px rgba(0, 123, 255, 0.1);
+    --library-shadow-hover: 0 8px 40px rgba(0, 123, 255, 0.2);
+}
+
+/* ===== CONTAINER PRINCIPAL ===== */
+.library-page-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== HEADER BIBLIOTHÈQUE ===== */
+.library-header {
+    background: linear-gradient(135deg, var(--library-primary), #0056b3);
+    color: white;
+    padding: 2rem;
+    border-radius: var(--library-border-radius);
+    margin-bottom: 2rem;
+    box-shadow: var(--library-shadow);
+    animation: slideInDown 0.6s ease-out;
+}
+
+.library-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.library-subtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.library-stats .badge {
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    border-radius: 20px;
+}
+
+/* ===== CARTE DE RECHERCHE ET FILTRES ===== */
+.search-filter-card {
+    border: none;
+    border-radius: var(--library-border-radius);
+    box-shadow: var(--library-shadow);
+    transition: var(--library-transition);
+    animation: slideInUp 0.6s ease-out;
+}
+
+.search-filter-card:hover {
+    box-shadow: var(--library-shadow-hover);
+    transform: translateY(-2px);
+}
+
+.search-input {
+    border-radius: 10px 0 0 10px;
+    border: 2px solid #e9ecef;
+    padding: 12px 15px;
+    transition: var(--library-transition);
+}
+
+.search-input:focus {
+    border-color: var(--library-primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.search-btn {
+    border-radius: 0 10px 10px 0;
+    border: 2px solid var(--library-primary);
+    padding: 12px 20px;
+}
+
+.category-select,
+.sort-select {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    padding: 12px 15px;
+    transition: var(--library-transition);
+}
+
+.category-select:focus,
+.sort-select:focus {
+    border-color: var(--library-primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* ===== BOUTONS DE MODE D'AFFICHAGE ===== */
+.view-mode-toggle .btn {
+    border-radius: 8px;
+    padding: 8px 12px;
+    transition: var(--library-transition);
+}
+
+.view-mode-toggle .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* ===== CARTES D'ÉLÉMENTS ===== */
+.library-item-card {
+    border: none;
+    border-radius: var(--library-border-radius);
+    box-shadow: var(--library-shadow);
+    transition: var(--library-transition);
+    overflow: hidden;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.library-item-card:hover {
+    box-shadow: var(--library-shadow-hover);
+    transform: translateY(-5px);
+}
+
+/* ===== IMAGES DES CARTES ===== */
+.card-image-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.card-image {
+    height: 200px;
+    object-fit: cover;
+    transition: var(--library-transition);
+}
+
+.library-item-card:hover .card-image {
+    transform: scale(1.05);
+}
+
+.image-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: var(--library-transition);
+}
+
+.library-item-card:hover .image-overlay {
+    opacity: 1;
+}
+
+.preview-btn,
+.favorite-btn {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    border: none;
+    transition: var(--library-transition);
+}
+
+.preview-btn:hover,
+.favorite-btn:hover {
+    transform: scale(1.1);
+}
+
+.rating-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    backdrop-filter: blur(10px);
+}
+
+/* ===== CONTENU DES CARTES ===== */
+.item-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--library-dark);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.item-category {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.item-description {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--library-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.item-tags .badge {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
+.item-stats {
+    border-top: 1px solid #e9ecef;
+    padding-top: 0.5rem;
+}
+
+/* ===== BOUTONS D'ACTION ===== */
+.download-btn {
+    background: linear-gradient(135deg, var(--library-primary), #0056b3);
+    border: none;
+    border-radius: 8px;
+    transition: var(--library-transition);
+}
+
+.download-btn:hover {
+    background: linear-gradient(135deg, #0056b3, var(--library-primary));
+    transform: translateY(-2px);
+}
+
+.open-link-btn {
+    background: linear-gradient(135deg, var(--library-info), #138496);
+    border: none;
+    border-radius: 8px;
+    transition: var(--library-transition);
+}
+
+.open-link-btn:hover {
+    background: linear-gradient(135deg, #138496, var(--library-info));
+    transform: translateY(-2px);
+}
+
+.watch-video-btn {
+    background: linear-gradient(135deg, var(--library-warning), #e0a800);
+    border: none;
+    border-radius: 8px;
+    transition: var(--library-transition);
+}
+
+.watch-video-btn:hover {
+    background: linear-gradient(135deg, #e0a800, var(--library-warning));
+    transform: translateY(-2px);
+}
+
+/* ===== VUE LISTE ===== */
+.list-view .library-item-card {
+    border-radius: var(--library-border-radius);
+    overflow: hidden;
+}
+
+.list-image {
+    height: 120px;
+    object-fit: cover;
+    border-radius: var(--library-border-radius) 0 0 var(--library-border-radius);
+}
+
+.list-item .card-body {
+    padding: 1.5rem;
+}
+
+/* ===== PAGINATION ===== */
+.pagination {
+    border-radius: var(--library-border-radius);
+    overflow: hidden;
+    box-shadow: var(--library-shadow);
+}
+
+.pagination .page-item .page-link {
+    border: none;
+    padding: 12px 16px;
+    transition: var(--library-transition);
+}
+
+.pagination .page-item.active .page-link {
+    background: var(--library-primary);
+    border-color: var(--library-primary);
+}
+
+.pagination .page-item .page-link:hover {
+    background: var(--library-light);
+    transform: translateY(-2px);
+}
+
+/* ===== SECTION VIDE ===== */
+.no-results {
+    padding: 3rem;
+    text-align: center;
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* ===== SECTION DE CHARGEMENT ===== */
+.loading-section {
+    padding: 3rem;
+    animation: pulse 1.5s ease-in-out infinite alternate;
+}
+
+/* ===== MODAL DE PRÉVISUALISATION ===== */
+.modal-content {
+    border-radius: var(--library-border-radius);
+    border: none;
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, var(--library-primary), #0056b3);
+    color: white;
+    border-radius: var(--library-border-radius) var(--library-border-radius) 0 0;
+}
+
+.modal-header .btn-close {
+    filter: invert(1);
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    from {
+        opacity: 0.6;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .library-title {
+        font-size: 2rem;
+    }
+
+    .library-header {
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .library-stats {
+        margin-top: 1rem;
+    }
+
+    .library-stats .badge {
+        display: block;
+        margin-bottom: 0.5rem;
+        width: fit-content;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .view-mode-toggle {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .card-image {
+        height: 150px;
+    }
+
+    .list-image {
+        height: 100px;
+    }
+}
+
+@media (max-width: 576px) {
+    .library-title {
+        font-size: 1.8rem;
+    }
+
+    .library-header {
+        padding: 1rem;
+    }
+
+    .search-filter-card .card-body {
+        padding: 1rem;
+    }
+
+    .item-title {
+        font-size: 1rem;
+    }
+
+    .item-description {
+        -webkit-line-clamp: 2;
+    }
+}
+
+/* ===== AMÉLIORATIONS VISUELLES ===== */
+.enhanced-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.enhanced-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+    z-index: 1;
+}
+
+.enhanced-card:hover::before {
+    left: 100%;
+}
+
+/* ===== SCROLLBAR PERSONNALISÉE ===== */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--library-light);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--library-primary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}

@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx
-import React, { useState, useEffect } from 'react'; // Import useEffect
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   FaHome,
@@ -14,31 +14,14 @@ import {
   FaRandom,
   FaBars,
   FaTimes,
+  FaCalendarAlt,
 } from 'react-icons/fa';
+import './Sidebar.css'; // Importer le CSS
 
 function Sidebar() {
   const location = useLocation();
   const [openSubmenuId, setOpenSubmenuId] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for sidebar visibility
-
-  // Close sidebar when screen size changes to large (desktop)
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) { // md breakpoint of Bootstrap
-        setIsSidebarOpen(true); // Always open on larger screens
-      } else {
-        setIsSidebarOpen(false); // Close on smaller screens by default
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    // Initial check
-    handleResize();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleToggleClick = (submenuId) => {
     setOpenSubmenuId(openSubmenuId === submenuId ? null : submenuId);
@@ -46,14 +29,12 @@ function Sidebar() {
 
   const handleLinkClick = () => {
     setOpenSubmenuId(null);
-    // Close the sidebar after clicking a link on small screens
-    if (window.innerWidth < 768) { // md breakpoint of Bootstrap
-      setIsSidebarOpen(false);
-    }
+    // Fermer sur mobile
+    setIsMobileOpen(false);
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+  const toggleMobileMenu = () => {
+    setIsMobileOpen(!isMobileOpen);
   };
 
   const isActive = (pathname) => location.pathname === pathname;
@@ -61,188 +42,170 @@ function Sidebar() {
 
   return (
     <>
-      {/* Hamburger button for small screens */}
+      {/* Bouton mobile */}
       <button
-        className="btn btn-primary d-md-none sidebar-toggle-button" // Visible only on screens < md
-        onClick={toggleSidebar}
-        aria-controls="sidebar-menu"
-        aria-expanded={isSidebarOpen}
-        aria-label="Toggle navigation"
+        className="mobile-toggle-btn"
+        onClick={toggleMobileMenu}
       >
-        {isSidebarOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
+        {isMobileOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
       </button>
 
-      {/* The Sidebar itself */}
-      <div
-        className={`d-flex flex-column flex-shrink-0 p-3 bg-dark sidebar-custom
-          ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`} // Classes for responsiveness
-        style={{ minHeight: '100vh' }}
-        id="sidebar-menu"
-      >
-        <hr />
-        <ul className="nav nav-pills flex-column mb-auto">
+      {/* Sidebar */}
+      <div className={`custom-sidebar ${isMobileOpen ? 'mobile-visible' : ''}`}>
+
+        <div className="sidebar-content">
           {/* Tableau de bord */}
-          <li className="nav-item">
+          <div className="nav-item">
             <Link
               to="/"
-              className={`nav-link link-darkt d-flex align-items-center ${isActive('/') ? 'active-sidebar' : ''}`}
-              aria-current="page"
+              className={`nav-link ${isActive('/') ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
-              <FaHome className="bi me-2" size={16} />
-              <span className="sidebar-text">Tableau de bord</span>
+              <FaHome className="nav-icon" />
+              <span className="nav-text">Tableau de bord</span>
             </Link>
-          </li>
+          </div>
 
-          {/* SRH (Gestion de personnel) */}
-          <li className="nav-item">
+          {/* Gestion personnel */}
+          <div className="nav-item">
             <a
-              className={`nav-link link-darkt d-flex align-items-center ${isSubmenuOpen('#submenu-srh') ? 'active-sidebar' : ''}`}
-              href="#submenu-srh"
-              role="button"
-              aria-expanded={isSubmenuOpen('#submenu-srh')}
-              aria-controls="submenu-srh"
-              onClick={() => handleToggleClick('#submenu-srh')}
+              className={`nav-link ${isSubmenuOpen('srh') ? 'active' : ''}`}
+              onClick={() => handleToggleClick('srh')}
             >
-              <FaUsers className="bi me-2" size={16} />
-              <span className="sidebar-text">SRH</span>
+              <FaUsers className="nav-icon" />
+              <span className="nav-text">Gestion personnel</span>
             </a>
-            <div className={`collapse ${isSubmenuOpen('#submenu-srh') ? 'show' : ''}`} id="submenu-srh">
-              <ul className="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                <li>
-                  <Link
-                    to="/cadres"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/cadres') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaUsers className="bi me-2" size={16} />
-                    <span className="sidebar-text">Liste Personnel</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/create/cadre"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/create/cadre') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaUserPlus className="bi me-2" size={16} />
-                    <span className="sidebar-text">Insertion Personnel</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </li>
+            {isSubmenuOpen('srh') && (
+              <div className="submenu">
+                <Link
+                  to="/cadres"
+                  className={`submenu-link ${isActive('/cadres') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaUsers className="nav-icon" />
+                  <span className="nav-text">Liste Personnel</span>
+                </Link>
+                <Link
+                  to="/create/cadre"
+                  className={`submenu-link ${isActive('/create/cadre') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaUserPlus className="nav-icon" />
+                  <span className="nav-text">Insertion Personnel</span>
+                </Link>
+                <Link
+                  to="/suivi-permissions"
+                  className={`submenu-link ${isActive('/suivi-permissions') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaCalendarAlt className="nav-icon" />
+                  <span className="nav-text">Suivi de Permission</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
-          {/* Mise à Jours SPA */}
-          <li className="nav-item">
+          {/* Mise à jour SPA */}
+          <div className="nav-item">
             <a
-              className={`nav-link link-darkt d-flex align-items-center ${isSubmenuOpen('#submenu-misesajour') ? 'active-sidebar' : ''}`}
-              href="#submenu-misesajour"
-              role="button"
-              aria-expanded={isSubmenuOpen('#submenu-misesajour')}
-              aria-controls="submenu-misesajour"
-              onClick={() => handleToggleClick('#submenu-misesajour')}
+              className={`nav-link ${isSubmenuOpen('maj') ? 'active' : ''}`}
+              onClick={() => handleToggleClick('maj')}
             >
-              <FaUserEdit className="bi me-2" size={16} />
-              <span className="sidebar-text">Mise à Jours SPA</span>
+              <FaUserEdit className="nav-icon" />
+              <span className="nav-text">Mise à Jours SPA</span>
             </a>
-            <div className={`collapse ${isSubmenuOpen('#submenu-misesajour') ? 'show' : ''}`} id="submenu-misesajour">
-              <ul className="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                <li>
-                  <Link
-                    to="/mises-a-jour/cadre"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/mises-a-jour/cadre') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaUserEdit className="bi me-2" size={16} />
-                    <span className="sidebar-text">Cadre</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </li>
+            {isSubmenuOpen('maj') && (
+              <div className="submenu">
+                <Link
+                  to="/mises-a-jour/cadre"
+                  className={`submenu-link ${isActive('/mises-a-jour/cadre') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaUserEdit className="nav-icon" />
+                  <span className="nav-text">Cadre</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Paramètres */}
-          <li className="nav-item">
+          <div className="nav-item">
             <a
-              className={`nav-link link-darkt d-flex align-items-center ${isSubmenuOpen('#submenu-parametres') ? 'active-sidebar' : ''}`}
-              href="#submenu-parametres"
-              role="button"
-              aria-expanded={isSubmenuOpen('#submenu-parametres')}
-              aria-controls="submenu-parametres"
-              onClick={() => handleToggleClick('#submenu-parametres')}
+              className={`nav-link ${isSubmenuOpen('params') ? 'active' : ''}`}
+              onClick={() => handleToggleClick('params')}
             >
-              <FaCog className="bi me-2" size={16} />
-              <span className="sidebar-text">Paramètres</span>
+              <FaCog className="nav-icon" />
+              <span className="nav-text">Paramètres</span>
             </a>
-            <div className={`collapse ${isSubmenuOpen('#submenu-parametres') ? 'show' : ''}`} id="submenu-parametres">
-              <ul className="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                <li>
-                  <Link
-                    to="/parametres/comptes"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/parametres/comptes') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaUserCircle className="bi me-2" size={16} />
-                    <span className="sidebar-text">Compte</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </li>
+            {isSubmenuOpen('params') && (
+              <div className="submenu">
+                <Link
+                  to="/parametres/comptes"
+                  className={`submenu-link ${isActive('/parametres/comptes') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaUserCircle className="nav-icon" />
+                  <span className="nav-text">Compte</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Historique */}
-          <li className="nav-item">
+          <div className="nav-item">
             <Link
               to="/historique"
-              className={`nav-link link-darkt d-flex align-items-center ${isActive('/historique') ? 'active-sidebar' : ''}`}
+              className={`nav-link ${isActive('/historique') ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
-              <FaHistory className="bi me-2" size={16} />
-              <span className="sidebar-text">Historique</span>
+              <FaHistory className="nav-icon" />
+              <span className="nav-text">Historique</span>
             </Link>
-          </li>
+          </div>
 
           {/* DIVERS */}
-          <li className="nav-item">
+          <div className="nav-item">
             <a
-              className={`nav-link link-darkt d-flex align-items-center ${isSubmenuOpen('#submenu-divers') ? 'active-sidebar' : ''}`}
-              href="#submenu-divers"
-              role="button"
-              aria-expanded={isSubmenuOpen('#submenu-divers')}
-              aria-controls="submenu-divers"
-              onClick={() => handleToggleClick('#submenu-divers')}
+              className={`nav-link ${isSubmenuOpen('divers') ? 'active' : ''}`}
+              onClick={() => handleToggleClick('divers')}
             >
-              <FaTools className="bi me-2" size={16} />
-              <span className="sidebar-text">DIVERS</span>
+              <FaTools className="nav-icon" />
+              <span className="nav-text">DIVERS</span>
             </a>
-            <div className={`collapse ${isSubmenuOpen('#submenu-divers') ? 'show' : ''}`} id="submenu-divers">
-              <ul className="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-                <li>
-                  <Link
-                    to="/divers/staff"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/divers/staff') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaUsersCog className="bi me-2" size={16} />
-                    <span className="sidebar-text">STAFF</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/divers/repartition-cadres"
-                    className={`nav-link link-darkt d-flex align-items-center ${isActive('/divers/repartition-cadres') ? 'active-sidebar' : ''}`}
-                    onClick={handleLinkClick}
-                  >
-                    <FaRandom className="bi me-2" size={16} />
-                    <span className="sidebar-text">Répartition Cadres</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </li>
-        </ul>
-        <hr />
+            {isSubmenuOpen('divers') && (
+              <div className="submenu">
+                <Link
+                  to="/divers/staff"
+                  className={`submenu-link ${isActive('/divers/staff') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaUsersCog className="nav-icon" />
+                  <span className="nav-text">STAFF</span>
+                </Link>
+                <Link
+                  to="/divers/repartition-cadres"
+                  className={`submenu-link ${isActive('/divers/repartition-cadres') ? 'active' : ''}`}
+                  onClick={handleLinkClick}
+                >
+                  <FaRandom className="nav-icon" />
+                  <span className="nav-text">Répartition Cadres</span>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Chat */}
+          <div className="nav-item">
+            <Link
+              to="/chat"
+              className={`nav-link ${isActive('/chat') ? 'active' : ''}`}
+              onClick={handleLinkClick}
+            >
+              <i className="bi bi-chat-dots-fill nav-icon"></i>
+              <span className="nav-text">Chat</span>
+            </Link>
+          </div>
+        </div>
       </div>
     </>
   );

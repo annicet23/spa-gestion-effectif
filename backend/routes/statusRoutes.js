@@ -1,4 +1,3 @@
-// src/routes/statusRoutes.js
 const express = require('express');
 const router = express.Router();
 // Assurez-vous que les modèles sont correctement importés
@@ -14,11 +13,24 @@ const APP_TIMEZONE = 'Indian/Antananarivo'; // Assurez-vous que c'est bien défi
 // Middleware d'authentification appliqué à ce routeur
 router.use(authenticateJWT);
 
-
+// ✅ AJOUT - DEBUG LOGGING POUR TOUTES LES REQUÊTES
+router.use((req, res, next) => {
+    console.log(`[statusRoutes] ====== REQUÊTE REÇUE ======`);
+    console.log(`[statusRoutes] Méthode: ${req.method}`);
+    console.log(`[statusRoutes] URL complète: ${req.originalUrl}`);
+    console.log(`[statusRoutes] Path: ${req.path}`);
+    console.log(`[statusRoutes] Paramètres:`, req.params);
+    console.log(`[statusRoutes] Query:`, req.query);
+    console.log(`[statusRoutes] User:`, req.user ? `${req.user.id} (${req.user.username})` : 'NON AUTHENTIFIÉ');
+    console.log(`[statusRoutes] Headers Authorization:`, req.headers.authorization ? 'PRÉSENT' : 'ABSENT');
+    console.log(`[statusRoutes] ===========================`);
+    next();
+});
 
 // Cette route retourne la liste des cadres qui ont effectué leur mise à jour
 // pour la période historique en cours (16h J-1 à 15h59 J), et ceux qui sont encore en attente.
 router.get('/daily-updates', async (req, res) => {
+    console.log(`[statusRoutes] === ROUTE /daily-updates APPELÉE ===`);
     try {
         const now = new Date();
         // Détermine la date historique ('AAAA-MM-JJ') pour la période actuelle (ex: '2025-05-20' si nous sommes le 19 mai après 16h)
@@ -34,11 +46,9 @@ router.get('/daily-updates', async (req, res) => {
         console.log(`  Début (${APP_TIMEZONE}) : ${moment(periodStart).tz(APP_TIMEZONE).format('YYYY-MM-DD HH:mm:ss')}`);
         console.log(`  Fin (${APP_TIMEZONE})   : ${moment(periodEnd).tz(APP_TIMEZONE).format('YYYY-MM-DD HH:mm:ss')}`);
 
-
         // Récupère les mises à jour validées pour la période historique actuelle.
         const userDailySubmissions = await MiseAJour.findAll({
             where: {
-                // *** CORRECTION ICI : Utilisez 'created_at' (snake_case), le nom exact de la colonne DB ***
                 created_at: {
                     [Op.between]: [periodStart, periodEnd]
                 },
@@ -47,10 +57,6 @@ router.get('/daily-updates', async (req, res) => {
             attributes: [
                 [Sequelize.col('SubmittedBy.id'), 'id'],
                 [Sequelize.col('SubmittedBy.username'), 'username'],
-                // Vous pouvez ajouter d'autres attributs de l'utilisateur SubmittedBy si nécessaire
-                // [Sequelize.col('SubmittedBy.nom'), 'nom'],
-                // [Sequelize.col('SubmittedBy.prenom'), 'prenom'],
-
                 // Compte le nombre de soumissions par utilisateur pour la période
                 [Sequelize.fn('COUNT', '*'), 'dailySubmissionCount'],
                 // Récupère le timestamp de la dernière soumission pour l'affichage
@@ -69,8 +75,6 @@ router.get('/daily-updates', async (req, res) => {
             group: [ // Regroupe par les identifiants de l'utilisateur pour agréger les soumissions
                 'SubmittedBy.id',
                 'SubmittedBy.username',
-                // 'SubmittedBy.nom',
-                // 'SubmittedBy.prenom',
             ],
             order: [
                 // Trie les résultats par la date de la dernière soumission, la plus récente en premier
@@ -82,7 +86,6 @@ router.get('/daily-updates', async (req, res) => {
         // Les utilisateurs "Terminés" sont ceux trouvés dans la requête ci-dessus
         const completedUsers = userDailySubmissions;
         console.log(`[statusRoutes] Cadres "Terminés" (IDs): ${completedUsers.map(u => u.id).join(', ')}`);
-
 
         // Récupère tous les utilisateurs Standard/Active
         const allStandardActiveUsers = await User.findAll({
@@ -105,7 +108,6 @@ router.get('/daily-updates', async (req, res) => {
         pendingUsers.sort((a, b) => a.username.localeCompare(b.username));
         console.log(`[statusRoutes] Cadres "En attente" (IDs): ${pendingUsers.map(u => u.id).join(', ')}`);
 
-
         // Renvoie les deux listes au client
         res.json({
             completed: completedUsers,
@@ -118,8 +120,123 @@ router.get('/daily-updates', async (req, res) => {
     }
 });
 
+// ✅ VERSION SIMPLIFIÉE AVEC DEBUG - DOIT FONCTIONNER
+router.get('/users/:userId/submissions', async (req, res) => {
+    console.log(`[statusRoutes] === ROUTE /users/:userId/submissions APPELÉE ===`);
+    try {
+        const { userId } = req.params;
 
+        console.log(`[statusRoutes] GET /users/:userId/submissions - Récupération des soumissions pour User ID: ${userId}`);
+        console.log(`[statusRoutes] Type de userId: ${typeof userId}, Valeur: "${userId}"`);
+
+        // ✅ SIMPLE - Récupérer TOUTES les soumissions des dernières 24h
+        const last24Hours = new Date();
+        last24Hours.setHours(last24Hours.getHours() - 24);
+
+        console.log(`[statusRoutes] Recherche depuis: ${last24Hours.toISOString()}`);
+        console.log(`[statusRoutes] Jusqu'à maintenant: ${new Date().toISOString()}`);
+
+        // Vérification des permissions
+        const requestingUser = req.user;
+        const isAdmin = requestingUser.role === 'Admin';
+        const isOwnData = requestingUser.id === parseInt(userId);
+
+        console.log(`[statusRoutes] Vérification permissions:`);
+        console.log(`  - User connecté: ${requestingUser.id} (${requestingUser.username})`);
+        console.log(`  - Role: ${requestingUser.role}`);
+        console.log(`  - Est Admin: ${isAdmin}`);
+        console.log(`  - Est ses propres données: ${isOwnData}`);
+        console.log(`  - Comparaison: ${requestingUser.id} === ${parseInt(userId)} = ${requestingUser.id === parseInt(userId)}`);
+
+        if (!isAdmin && !isOwnData) {
+            console.log(`[statusRoutes] ACCÈS REFUSÉ pour userId ${userId}`);
+            return res.status(403).json({
+                message: 'Accès refusé : vous ne pouvez voir que vos propres soumissions.'
+            });
+        }
+
+        console.log(`[statusRoutes] ACCÈS AUTORISÉ pour userId ${userId}`);
+
+        // ✅ REQUÊTE SIMPLE - dernières 24h
+        console.log(`[statusRoutes] Exécution de la requête MiseAJour.findAll...`);
+
+        const submissions = await MiseAJour.findAll({
+            where: {
+                submitted_by_id: userId,
+                created_at: {
+                    [Op.gte]: last24Hours // Depuis les dernières 24h
+                }
+            },
+            include: [
+                {
+                    model: User,
+                    as: 'SubmittedBy',
+                    attributes: ['id', 'username', 'nom', 'prenom'],
+                    include: [{
+                        model: Cadre,
+                        as: 'cadre',
+                        attributes: ['id', 'service', 'fonction']
+                    }]
+                },
+                {
+                    model: User,
+                    as: 'ValidatedBy',
+                    attributes: ['id', 'username', 'nom', 'prenom'],
+                    required: false
+                }
+            ],
+            order: [['created_at', 'DESC']]
+        });
+
+        console.log(`[statusRoutes] ✅ REQUÊTE TERMINÉE - Trouvé ${submissions.length} soumissions pour l'utilisateur ${userId}`);
+
+        // ✅ DEBUG DÉTAILLÉ
+        if (submissions.length > 0) {
+            console.log(`[statusRoutes] Liste des soumissions trouvées:`);
+            submissions.forEach((sub, index) => {
+                console.log(`  ${index + 1}. ID: ${sub.id}, Créé: ${sub.created_at}, Status: ${sub.status}`);
+            });
+        } else {
+            console.log(`[statusRoutes] ❌ AUCUNE SOUMISSION TROUVÉE`);
+            console.log(`[statusRoutes] Critères de recherche:`);
+            console.log(`  - submitted_by_id: ${userId}`);
+            console.log(`  - created_at >= ${last24Hours.toISOString()}`);
+
+            // Test: vérification de toutes les soumissions récentes sans filtre utilisateur
+            console.log(`[statusRoutes] Test: Recherche de TOUTES les soumissions récentes...`);
+            const allRecentSubmissions = await MiseAJour.findAll({
+                where: {
+                    created_at: {
+                        [Op.gte]: last24Hours
+                    }
+                },
+                attributes: ['id', 'submitted_by_id', 'created_at', 'status'],
+                order: [['created_at', 'DESC']],
+                limit: 10
+            });
+
+            console.log(`[statusRoutes] Trouvé ${allRecentSubmissions.length} soumissions récentes (tous utilisateurs):`);
+            allRecentSubmissions.forEach((sub, index) => {
+                console.log(`  ${index + 1}. ID: ${sub.id}, User: ${sub.submitted_by_id}, Créé: ${sub.created_at}, Status: ${sub.status}`);
+            });
+        }
+
+        console.log(`[statusRoutes] Envoi de la réponse JSON...`);
+        res.json(submissions);
+
+    } catch (error) {
+        console.error('[statusRoutes] ❌ ERREUR lors de la récupération des soumissions utilisateur:', error);
+        console.error('[statusRoutes] Stack trace:', error.stack);
+        res.status(500).json({
+            message: 'Erreur serveur lors de la récupération des soumissions.',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Route existante pour le résumé des cadres
 router.get('/cadres/summary', async (req, res) => {
+    console.log(`[statusRoutes] === ROUTE /cadres/summary APPELÉE ===`);
     // TODO: Ajouter la logique de permission (seuls les Admins ou Cadres avec certaines responsabilités peuvent voir ?)
     console.log(`[statusRoutes] TODO: Vérifier les permissions pour la route /cadres/summary pour l'utilisateur ${req.user ? req.user.username : 'non authentifié'}.`);
 

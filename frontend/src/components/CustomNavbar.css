@@ -1,247 +1,807 @@
 /* src/CustomNavbar.css */
 
-/* --- Styles personnalisés pour la Navbar --- */
+/* === NAVBAR CONTAINER PRINCIPAL === */
 .navbar-custom {
-    background-color: #007bff; /* Bleu vibrant */
-    position: fixed;
-    top: 0;
-    width: 100%;
-    z-index: 1030;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    background-color: #007bff !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 60px !important; /* HAUTEUR FIXE FORCÉE */
+    z-index: 1030 !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
+/* Container fluide - FORCER L'ALIGNEMENT */
+.navbar-custom .container-fluid {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    height: 60px !important;
+    margin: 0 !important;
+    padding: 0 15px !important;
+    flex-wrap: nowrap !important;
+}
+
+/* === LOGO/BRAND === */
 .navbar-custom .navbar-brand {
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 1.5rem;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    font-size: 1.5rem !important;
+    text-decoration: none !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 60px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
 }
 
 .navbar-custom .navbar-brand:hover {
-    color: #e0e0e0;
+    color: #e0e0e0 !important;
 }
 
-/* Couleurs des liens et icônes des boutons 'outline-light' (comme le bouton de recherche) */
-.navbar-custom .nav-link,
-.navbar-custom .btn-outline-light {
-    color: #ffffff;
-    border-color: #ffffff;
+.navbar-custom .navbar-brand svg {
+    margin-right: 8px !important;
 }
 
-.navbar-custom .nav-link:hover,
-.navbar-custom .btn-outline-light:hover {
-    color: #007bff;
-    background-color: #ffffff;
-    border-color: #ffffff;
+/* === SECTION DE DROITE - FORCER L'ALIGNEMENT === */
+.navbar-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    height: 60px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+    list-style: none !important;
 }
 
-/* Styles pour l'effet au survol du nom de l'utilisateur */
-.navbar-custom .nav-item .user-info {
-    color: #ffffff;
-    transition: color 0.3s ease, text-decoration 0.3s ease;
+/* === FORMULAIRE DE RECHERCHE DESKTOP === */
+.navbar-search-form {
+    display: flex !important;
+    align-items: center !important;
+    height: 60px !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
-.navbar-custom .nav-item .user-info:hover {
-    color: #e0e0e0;
-    text-decoration: underline;
-    cursor: pointer;
+/* === CHAMPS ET BOUTONS - TAILLES FIXES === */
+
+/* Input de recherche */
+.search-input-large {
+    width: 280px !important;
+    height: 38px !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
 }
 
-/* Styles pour le champ de recherche général */
-.navbar-custom .form-control {
-    border-color: rgba(255, 255, 255, 0.5);
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+.search-input-large::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
 }
 
-.navbar-custom .form-control::placeholder {
-    color: rgba(255, 255, 255, 0.7);
+/* Boutons - TAILLE FORCÉE */
+.search-btn-large,
+.search-toggle-btn {
+    width: 45px !important;
+    height: 38px !important;
+    min-width: 45px !important;
+    min-height: 38px !important;
+    max-width: 45px !important;
+    max-height: 38px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid #ffffff !important;
+    background: transparent !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
 }
 
-/* Styles pour le bouton de bascule (toggler) */
-.navbar-custom .navbar-toggler {
-    border-color: rgba(255, 255, 255, 0.5);
+.search-btn-large:hover,
+.search-toggle-btn:hover {
+    background-color: #ffffff !important;
+    color: #007bff !important;
 }
 
-.navbar-custom .navbar-toggler-icon {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+.search-btn-large svg,
+.search-toggle-btn svg {
+    font-size: 16px !important;
 }
 
-/* Styles pour les icônes de react-icons dans les boutons */
-.navbar-custom .btn-outline-light svg {
-    font-size: 1.2rem;
-    vertical-align: middle;
-}
-
-/* --- STYLES POUR LE TOGGLE SWITCH DE DÉCONNEXION --- */
+/* === TOGGLE SWITCH DE DÉCONNEXION === */
 .toggle-switch {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    width: 75px;
-    height: 38px;
-    background-color: #e0e0e0;
-    border-radius: 38px;
-    cursor: pointer;
-    transition: background-color 0.4s ease;
-    overflow: hidden;
-    box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+    width: 75px !important;
+    height: 38px !important;
+    min-width: 75px !important;
+    min-height: 38px !important;
+    max-width: 75px !important;
+    max-height: 38px !important;
+    background-color: #e0e0e0 !important;
+    border-radius: 19px !important;
+    position: relative !important;
+    cursor: pointer !important;
+    transition: background-color 0.4s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.2) !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .toggle-switch.on {
-    background-color: #28a745;
+    background-color: #28a745 !important;
 }
 
 .toggle-slider {
-    position: absolute;
-    content: "";
-    height: 30px;
-    width: 30px;
-    left: 4px;
-    background-color: white;
-    border-radius: 50%;
-    transition: transform 0.4s ease, background-color 0.4s ease;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    position: absolute !important;
+    left: 4px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 30px !important;
+    height: 30px !important;
+    background-color: white !important;
+    border-radius: 50% !important;
+    transition: all 0.4s ease !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
 }
 
 .toggle-switch.on .toggle-slider {
-    transform: translateX(37px);
-    background-color: white;
+    transform: translateY(-50%) translateX(37px) !important;
 }
 
 .toggle-text {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.85rem;
-    font-weight: bold;
-    pointer-events: none;
-    z-index: 1;
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
 }
 
 .toggle-text.on-text {
-    left: 8px;
-    color: #ffffff;
-    opacity: 0;
-    transition: opacity 0.4s ease 0.1s;
+    left: 8px !important;
+    color: #ffffff !important;
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
 }
 
 .toggle-text.off-text {
-    right: 8px;
-    color: #555;
-    opacity: 1;
-    transition: opacity 0.4s ease 0.1s;
+    right: 8px !important;
+    color: #555 !important;
+    opacity: 1 !important;
+    transition: opacity 0.4s ease !important;
 }
 
 .toggle-switch.on .on-text {
-    opacity: 1;
+    opacity: 1 !important;
 }
 
 .toggle-switch.on .off-text {
-    opacity: 0;
+    opacity: 0 !important;
+}
+
+/* === INFORMATIONS UTILISATEUR === */
+.user-info {
+    color: #ffffff !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* === DROPDOWN DE RECHERCHE MOBILE === */
+.search-form-dropdown {
+    position: fixed !important;
+    top: 60px !important;
+    left: 0 !important;
+    width: 100% !important;
+    background-color: #206cbd !important;
+    padding: 15px 0 !important;
+    z-index: 1029 !important;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3) !important;
+    transform: translateY(-100%) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: all 0.3s ease !important;
+}
+
+.search-form-dropdown.show {
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.search-form-dropdown .container-fluid {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 10px !important;
+    max-width: 400px !important;
+    margin: 0 auto !important;
+    height: auto !important;
+    padding: 0 15px !important;
+}
+
+.search-input-small {
+    flex: 1 !important;
+    height: 38px !important;
+    max-width: 250px !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    padding: 8px 12px !important;
+}
+
+.search-input-small::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.search-btn-small {
+    width: 45px !important;
+    height: 38px !important;
+    min-width: 45px !important;
+    padding: 0 !important;
+    border: 1px solid #ffffff !important;
+    background: transparent !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.search-btn-small:hover {
+    background-color: #ffffff !important;
+    color: #007bff !important;
+}
+
+/* === RESPONSIVE === */
+
+/* MOBILE (≤991px) */
+@media (max-width: 991px) {
+    .navbar-custom .container-fluid {
+        padding: 0 10px !important;
+    }
+
+    .navbar-custom .navbar-brand {
+        font-size: 1.3rem !important;
+    }
+
+    .navbar-nav {
+        gap: 8px !important;
+    }
+
+    .toggle-switch {
+        width: 65px !important;
+        height: 32px !important;
+        min-width: 65px !important;
+        min-height: 32px !important;
+    }
+
+    .toggle-switch .toggle-slider {
+        width: 26px !important;
+        height: 26px !important;
+        left: 3px !important;
+    }
+
+    .toggle-switch.on .toggle-slider {
+        transform: translateY(-50%) translateX(30px) !important;
+    }
+
+    .search-toggle-btn {
+        width: 40px !important;
+        height: 32px !important;
+        min-width: 40px !important;
+        min-height: 32px !important;
+    }
+
+    .user-info {
+        display: none !important;
+    }
+}
+
+/* TRÈS PETITS ÉCRANS (≤576px) */
+@media (max-width: 576px) {
+    .navbar-custom .container-fluid {
+        padding: 0 8px !important;
+    }
+
+    .navbar-custom .navbar-brand {
+        font-size: 1.2rem !important;
+    }
+
+    .navbar-nav {
+        gap: 6px !important;
+    }
+
+    .toggle-switch {
+        width: 60px !important;
+        height: 30px !important;
+        min-width: 60px !important;
+        min-height: 30px !important;
+    }
+
+    .toggle-switch .toggle-slider {
+        width: 24px !important;
+        height: 24px !important;
+    }
+
+    .toggle-switch.on .toggle-slider {
+        transform: translateY(-50%) translateX(26px) !important;
+    }
+
+    .search-toggle-btn {
+        width: 36px !important;
+        height: 30px !important;
+        min-width: 36px !important;
+        min-height: 30px !important;
+    }
+}/* === STYLES POUR LOGO SANS FOND === */
+.navbar-logo {
+    margin-right: 10px !important;
+    border-radius: 6px !important;
+    object-fit: contain !important;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.2)) !important;
+    transition: all 0.3s ease !important;
+    /* Avec fond par défaut */
+    background-color: rgba(255,255,255,0.1) !important;
+    padding: 2px !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+/* LOGO SANS FOND */
+.navbar-logo.no-bg {
+    background-color: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* Effet hover pour logo sans fond */
+.navbar-brand:hover .navbar-logo.no-bg {
+    transform: scale(1.1) !important;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)) brightness(1.1) !important;
+}
+
+/* Logo SVG de fallback */
+.fallback-logo {
+    margin-right: 10px !important;
+}
+
+/* Ajustements responsive pour logo sans fond */
+@media (max-width: 991px) {
+    .navbar-logo.no-bg {
+        width: 30px !important;
+        height: 30px !important;
+        margin-right: 8px !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .navbar-logo.no-bg {
+        width: 26px !important;
+        height: 26px !important;
+        margin-right: 6px !important;
+    }
+}
+
+/* Si vous voulez quand même un léger effet au hover */
+.navbar-logo.no-bg.subtle-effect {
+    transition: all 0.3s ease !important;
+}
+
+.navbar-brand:hover .navbar-logo.no-bg.subtle-effect {
+    transform: scale(1.05) !important;
+    filter: drop-shadow(0 1px 4px rgba(255,255,255,0.3)) !important;
+}
+/* === STYLES POUR LES INFORMATIONS UTILISATEUR === */
+
+.user-info-container {
+    display: flex !important;
+    align-items: center !important;
+    height: 60px !important;
+}
+
+.user-card {
+    display: flex !important;
+    align-items: center !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 25px !important;
+    padding: 6px 15px 6px 6px !important;
+    transition: all 0.3s ease !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+.user-card:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Avatar avec icône */
+.user-avatar {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #ffd700, #ffed4e) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-right: 10px !important;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+.user-card:hover .user-avatar {
+    transform: scale(1.1) !important;
+    box-shadow: 0 3px 12px rgba(255, 215, 0, 0.5) !important;
+}
+
+/* Icône du rôle */
+.role-icon {
+    font-size: 16px !important;
+    color: #1a5490 !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)) !important;
+}
+
+/* Détails utilisateur */
+.user-details {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    line-height: 1.2 !important;
+}
+
+.user-role {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #ffd700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 1px !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+}
+
+.user-name {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+}
+
+/* Couleurs spécifiques par rôle */
+.user-card[data-role="admin"] .user-avatar,
+.user-card[data-role="administrateur"] .user-avatar {
+    background: linear-gradient(135deg, #ff6b6b, #ffa500) !important;
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3) !important;
+}
+
+.user-card[data-role="manager"] .user-avatar,
+.user-card[data-role="gestionnaire"] .user-avatar {
+    background: linear-gradient(135deg, #4ecdc4, #44a08d) !important;
+    box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3) !important;
+}
+
+/* Animation d'apparition */
+@keyframes fadeInUser {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.user-card {
+    animation: fadeInUser 0.5s ease-out !important;
+}
+
+/* Responsive pour les infos utilisateur */
+@media (max-width: 1200px) {
+    .user-card {
+        padding: 4px 12px 4px 4px !important;
+    }
+
+    .user-avatar {
+        width: 32px !important;
+        height: 32px !important;
+        margin-right: 8px !important;
+    }
+
+    .role-icon {
+        font-size: 14px !important;
+    }
+
+    .user-role {
+        font-size: 10px !important;
+    }
+
+    .user-name {
+        font-size: 13px !important;
+    }
+}
+
+@media (max-width: 1100px) {
+    .user-details {
+        display: none !important;
+    }
+
+    .user-card {
+        padding: 6px !important;
+        border-radius: 50% !important;
+        width: 36px !important;
+        height: 36px !important;
+    }
+
+    .user-avatar {
+        margin-right: 0 !important;
+    }
+}
+
+/* Effet de pulsation pour attirer l'attention */
+@keyframes pulse {
+    0% { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+    50% { box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2); }
+    100% { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+}
+
+.user-card.pulse {
+    animation: pulse 2s infinite !important;
+}
+/* === STYLES POUR LE TOGGLE SWITCH DE DÉCONNEXION AMÉLIORÉ === */
+.toggle-switch {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 75px !important;
+    height: 38px !important;
+    background-color: #28a745 !important; /* VERT par défaut (connecté) */
+    border-radius: 19px !important;
+    cursor: pointer !important;
+    transition: all 0.4s ease !important;
+    overflow: hidden !important;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.2) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 2px solid rgba(255,255,255,0.2) !important;
+}
+
+/* État OFF (déconnecté) - ROUGE */
+.toggle-switch.off {
+    background-color: #dc3545 !important; /* ROUGE quand off */
+    border-color: rgba(220, 53, 69, 0.3) !important;
+}
+
+/* État ON (connecté) - VERT */
+.toggle-switch.on {
+    background-color: #28a745 !important; /* VERT quand on */
+    border-color: rgba(40, 167, 69, 0.3) !important;
+}
+
+/* Slider */
+.toggle-slider {
+    position: absolute !important;
+    left: 4px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 30px !important;
+    height: 30px !important;
+    background-color: white !important;
+    border-radius: 50% !important;
+    transition: all 0.4s ease !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
+}
+
+/* Position du slider selon l'état */
+.toggle-switch.on .toggle-slider {
+    transform: translateY(-50%) translateX(37px) !important;
+}
+
+.toggle-switch.off .toggle-slider {
+    transform: translateY(-50%) translateX(0) !important;
+}
+
+/* Textes ON/OFF */
+.toggle-text {
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+}
+
+/* Texte ON */
+.toggle-text.on-text {
+    left: 8px !important;
+    color: #ffffff !important;
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+
+/* Texte OFF */
+.toggle-text.off-text {
+    right: 6px !important;
+    color: #ffffff !important;
+    opacity: 1 !important;
+    transition: opacity 0.4s ease !important;
+}
+
+/* Affichage des textes selon l'état */
+.toggle-switch.on .on-text {
+    opacity: 1 !important;
+}
+
+.toggle-switch.on .off-text {
+    opacity: 0 !important;
 }
 
 .toggle-switch.off .on-text {
-    opacity: 0;
+    opacity: 0 !important;
 }
 
 .toggle-switch.off .off-text {
-    opacity: 1;
+    opacity: 1 !important;
 }
 
+/* Effets de survol */
 .toggle-switch:hover {
-    box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.3) !important;
+    transform: scale(1.02) !important;
 }
 
 .toggle-switch:hover .toggle-slider {
-    transform: scale(1.05);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4) !important;
 }
 
+/* Animation au clic */
+.toggle-switch:active {
+    transform: scale(0.98) !important;
+}
 
-/* --- NOUVEAUX AJUSTEMENTS SPÉCIFIQUES POUR LES PETITS ÉCRANS (breakpoint lg de Bootstrap = 992px) --- */
-@media (max-width: 991.98px) {
-    /* Cache le champ de recherche par défaut pour petits écrans */
-    .navbar-collapse form.d-flex {
-        display: none;
+.toggle-switch:active .toggle-slider {
+    transform: translateY(-50%) scale(0.95) !important;
+}
+
+.toggle-switch.on:active .toggle-slider {
+    transform: translateY(-50%) translateX(37px) scale(0.95) !important;
+}
+
+/* Effets de glow selon l'état */
+.toggle-switch.on {
+    box-shadow:
+        inset 0 0 5px rgba(0,0,0,0.2),
+        0 0 10px rgba(40, 167, 69, 0.3) !important;
+}
+
+.toggle-switch.off {
+    box-shadow:
+        inset 0 0 5px rgba(0,0,0,0.2),
+        0 0 10px rgba(220, 53, 69, 0.3) !important;
+}
+
+/* Animation de transition d'état */
+@keyframes switchToOff {
+    0% { background-color: #28a745; }
+    50% { background-color: #ffc107; }
+    100% { background-color: #dc3545; }
+}
+
+@keyframes switchToOn {
+    0% { background-color: #dc3545; }
+    50% { background-color: #ffc107; }
+    100% { background-color: #28a745; }
+}
+
+.toggle-switch.switching-off {
+    animation: switchToOff 0.6s ease !important;
+}
+
+.toggle-switch.switching-on {
+    animation: switchToOn 0.6s ease !important;
+}
+
+/* === RESPONSIVE POUR LE TOGGLE === */
+@media (max-width: 991px) {
+    .toggle-switch {
+        width: 65px !important;
+        height: 32px !important;
+        min-width: 65px !important;
+        min-height: 32px !important;
     }
 
-    /* Positionnement des éléments à droite du logo sur petits écrans */
-    .small-screen-nav-items {
-        /* Bootstrap gère déjà le ms-auto pour pousser à droite */
-        /* Assurez-vous que les boutons à l'intérieur ont un bon espacement */
-        align-items: center; /* S'assurer qu'ils sont centrés verticalement */
-    }
-    .small-screen-nav-items .btn,
-    .small-screen-nav-items .toggle-switch {
-        margin-left: 5px; /* Espacement entre le bouton de recherche et le switch */
+    .toggle-switch .toggle-slider {
+        width: 26px !important;
+        height: 26px !important;
+        left: 3px !important;
     }
 
-
-    /* --- Styles pour le formulaire de recherche qui descend --- */
-    .search-form-dropdown {
-        position: fixed; /* Reste visible même en scrollant */
-        top: 60px; /* Commence juste en dessous de la navbar. Ajustez cette valeur si votre navbar a une hauteur différente */
-        left: 0;
-        width: 100%;
-        background-color: #007bff; /* Même couleur que la navbar */
-        padding: 10px 0; /* Padding vertical pour le contenu */
-        z-index: 1029; /* Juste en dessous de la navbar (1030) */
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3); /* Ombre pour le distinguer */
-
-        /* Animation de glissement vers le bas */
-        transform: translateY(-100%); /* Masqué par défaut vers le haut */
-        opacity: 0; /* Complètement transparent au début */
-        visibility: hidden; /* Assure qu'il n'est pas interactif quand il est masqué */
-        transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0s 0.3s; /* Transition fluide */
+    .toggle-switch.on .toggle-slider {
+        transform: translateY(-50%) translateX(30px) !important;
     }
 
-    .search-form-dropdown.show {
-        transform: translateY(0); /* Apparaît en glissant vers le bas */
-        opacity: 1; /* Devient opaque */
-        visibility: visible; /* Devient interactif */
-        transition: transform 0.3s ease-out, opacity 0.3s ease-out, visibility 0s; /* Délai retiré */
+    .toggle-switch.on:active .toggle-slider {
+        transform: translateY(-50%) translateX(30px) scale(0.95) !important;
     }
 
-    /* Centrer le contenu à l'intérieur du formulaire de recherche */
-    .search-form-dropdown .container-fluid {
-        justify-content: center; /* Centre les éléments horizontalement */
+    .toggle-text {
+        font-size: 10px !important;
     }
 
-
-    /* Le menu déplié */
-    .navbar-collapse {
-        background-color: #007bff;
-        padding-bottom: 10px;
-        box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
-        position: fixed; /* Change de absolute à fixed pour qu'il reste dans la vue */
-        top: 60px; /* Commence sous la navbar (ajustez si besoin) */
-        left: 0;
-        right: 0;
-        width: 100%;
-        height: calc(100vh - 60px); /* Prend le reste de la hauteur de l'écran */
-        overflow-y: auto; /* Permet le défilement si le contenu est trop long */
-        z-index: 1020;
+    .toggle-text.on-text {
+        left: 6px !important;
     }
 
+    .toggle-text.off-text {
+        right: 4px !important;
+    }
+}
 
-    /* Styles généraux pour les nav-items dans le menu déplié */
-    .navbar-nav .nav-item {
-        margin-top: 5px;
-        margin-bottom: 5px;
-        width: 100%;
-        text-align: center;
-        justify-content: center;
+@media (max-width: 576px) {
+    .toggle-switch {
+        width: 60px !important;
+        height: 30px !important;
+        min-width: 60px !important;
+        min-height: 30px !important;
     }
 
-    /* Ajustement de la taille et centrage des éléments */
-    .navbar-nav .nav-item button,
-    .navbar-nav .nav-item .toggle-switch {
-        width: 80%;
-        max-width: 250px;
-        margin: 0 auto;
-        display: block;
+    .toggle-switch .toggle-slider {
+        width: 24px !important;
+        height: 24px !important;
     }
 
-    /* Le nom d'utilisateur pourrait être affiché dans le menu déplié ici, si désiré */
-    /* .navbar-nav .nav-item .user-info { display: block; } */
+    .toggle-switch.on .toggle-slider {
+        transform: translateY(-50%) translateX(26px) !important;
+    }
+
+    .toggle-switch.on:active .toggle-slider {
+        transform: translateY(-50%) translateX(26px) scale(0.95) !important;
+    }
+}/* Animation de clignotement pour toggle OFF */
+@keyframes blinkRed {
+    0%, 50% {
+        background-color: #dc3545;
+        box-shadow: inset 0 0 5px rgba(0,0,0,0.2), 0 0 10px rgba(220, 53, 69, 0.3);
+    }
+    25%, 75% {
+        background-color: #ff6b6b;
+        box-shadow: inset 0 0 5px rgba(0,0,0,0.2), 0 0 15px rgba(255, 107, 107, 0.5);
+    }
+}
+
+.toggle-switch.off.blinking {
+    animation: blinkRed 0.8s infinite !important;
 }

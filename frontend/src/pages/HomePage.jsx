@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-// Importer le hook useAuth pour accéder aux infos utilisateur et au token
 import { useAuth } from '../context/AuthContext';
-// Utilisation des classes Bootstrap pour le style
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Importer le composant pour afficher la liste des personnes (sera utilisé uniquement dans la vue normale)
 import PersonList from '../components/PersonList';
 
 // Importations pour la génération de PDF
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import moment from 'moment-timezone'; // Assurez-vous que moment-timezone est bien importé
+import moment from 'moment-timezone';
 
-// Définir une structure de données par défaut pour les statistiques (uniquement pour Cadre)
+// Importation pour l'exportation Excel
+import * as XLSX from 'xlsx';
+
+// Définir une structure de données par défaut pour les statistiques
 const defaultStats = {
     total: 0,
     absent: 0,
@@ -21,7 +21,7 @@ const defaultStats = {
     surLeRang: 0,
 };
 
-// Structure pour stocker les données des listes (uniquement pour Cadre)
+// Structure pour stocker les données des listes
 const defaultPersonListData = {
     cadre: {
         absent: [],
@@ -36,116 +36,175 @@ const groupAndCountMotifs = (peopleList) => {
     }
     const motifCounts = {};
     peopleList.forEach(person => {
-        // Utiliser 'motif_absence' d'après la structure de données fournie par l'utilisateur
-        // Utilise un fallback sur 'Motif inconnu' si la propriété est absente ou nulle
         const motif = person.motif_absence || 'Motif inconnu';
-
         motifCounts[motif] = (motifCounts[motif] || 0) + 1;
     });
     return motifCounts;
 };
 
-// Helper function pour obtenir la date historique (décalée si après 16h)
-// Cette fonction doit être utilisée pour la date envoyée à l'API et pour l'affichage
-// Utilise le fuseau horaire de Madagascar par défaut
+// Helper function pour obtenir la date historique
 const getHistoricalDate = (realTime, timezone = 'Indian/Antananarivo') => {
     const momentDate = moment.tz(realTime, timezone);
-    // Si l'heure actuelle est 16h ou plus, la date est la date du jour suivant.
     return momentDate.hour() >= 16 ?
            momentDate.clone().add(1, 'day') :
            momentDate.clone();
 };
 
 function HomePage() {
-    // Accéder au token et aux infos utilisateur via le contexte
     const { user, token } = useAuth();
 
-    // --- États pour les données réelles (uniquement pour Cadre) ---
+    // --- États existants ---
     const [cadreStats, setCadreStats] = useState(defaultStats);
-    // personListData stockera les données pour les différentes listes (uniquement pour Cadre)
     const [personListData, setPersonListData] = useState(defaultPersonListData);
-
-    // displayListInfo: { category: 'cadre', types: ['absent'] | ['indisponible'] | ['absent', 'indisponible'] } ou null
-    // ** Cet état contrôle l'affichage des listes DANS LA PAGE NORMALE **
     const [displayListInfo, setDisplayListInfo] = useState(null);
-
-    const [isLoadingStats, setIsLoadingStats] = useState(true); // État de chargement des stats
-    // isLoadingList est maintenant un objet pour suivre le chargement par type (uniquement pour cadre)
+    const [isLoadingStats, setIsLoadingStats] = useState(true);
     const [isLoadingList, setIsLoadingList] = useState({ cadre: { absent: false, indisponible: false } });
-    // errorList est aussi un objet (uniquement pour cadre)
     const [errorList, setErrorList] = useState({ cadre: { absent: null, indisponible: null } });
-    const [errorStats, setErrorStats] = useState(null); // État d'erreur pour les stats
-    // --- Fin États ---
-    const [displayDateLabel, setDisplayDateLabel] = useState(''); // Pour l'affichage sur la page (date SPA)
-    // Ref pour la zone d'impression (utilisée par html2canvas)
-    const printAreaRef = useRef(null);
-    // État pour stocker la date d'impression (date SPA)
+    const [errorStats, setErrorStats] = useState(null);
+    const [displayDateLabel, setDisplayDateLabel] = useState('');
     const [printDate, setPrintDate] = useState('');
-    // État pour indiquer si la génération du PDF est en cours
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-    // ** Nouvel état pour contrôler la catégorie à imprimer **
-    // Sera 'cadre' lorsque le bouton Imprimer est cliqué, null sinon
     const [printCategory, setPrintCategory] = useState(null);
 
+    // --- États pour les filtres ---
+    const [selectedService, setSelectedService] = useState('');
+    const [selectedEscadron, setSelectedEscadron] = useState('');
+    const [availableServices, setAvailableServices] = useState([]);
+    const [availableEscadrons, setAvailableEscadrons] = useState([]);
+    const [isLoadingFilters, setIsLoadingFilters] = useState(false);
 
-    // --- Récupération des statistiques globales au chargement de la page ---
+    // --- État pour l'exportation Excel ---
+    const [isExporting, setIsExporting] = useState(false);
+
+    const printAreaRef = useRef(null);
+
+    // --- Récupération des options de filtres ---
     useEffect(() => {
-        const fetchStats = async () => {
-            setIsLoadingStats(true);
-            setErrorStats(null); // Réinitialiser l'erreur au début du fetch
+        const fetchFilterOptions = async () => {
+            if (!token) return;
+
+            setIsLoadingFilters(true);
             try {
-                // IMPORTANT : Calculez la date SPA en utilisant la fonction `getHistoricalDate`
-                // Utilisez le fuseau horaire 'Indian/Antananarivo' si c'est le fuseau horaire de référence pour votre SPA
-                const currentClientTime = new Date(); // L'heure actuelle du client
-                const spaDateMoment = getHistoricalDate(currentClientTime, 'Indian/Antananarivo');
-                const formattedSpaDate = spaDateMoment.format('YYYY-MM-DD'); // Format pour l'API (ex: "2025-05-20")
+                console.log('🔄 Récupération des options de filtres...');
 
-                // Mettez à jour la date d'affichage sur la page avec cette même date
-                setDisplayDateLabel(spaDateMoment.format('DD/MM/YYYY')); // Format pour l'affichage (ex: "20/05/2025")
-                // Mettez à jour la date pour le PDF (elle aussi doit être la date SPA)
-                setPrintDate(spaDateMoment.format('DD/MM/YYYY'));
-
-                // Utilisez la date calculée pour l'API
-                const response = await fetch(`/api/mises-a-jour/cadres/summary?date=${formattedSpaDate}`, {
+                // Récupérer les services disponibles
+                const servicesResponse = await fetch('/api/cadres/services', {
                     method: 'GET',
                     headers: {
-                        // Assurez-vous d'inclure le token d'authentification si nécessaire
                         'Content-Type': 'application/json',
-                        ...(token && { 'Authorization': `Bearer ${token}` }),
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (servicesResponse.ok) {
+                    const servicesData = await servicesResponse.json();
+                    console.log('✅ Services récupérés:', servicesData);
+                    setAvailableServices(servicesData);
+                } else {
+                    console.error('❌ Erreur lors de la récupération des services:', servicesResponse.status);
+                }
+
+                // Récupérer les escadrons disponibles
+                const escadronsResponse = await fetch('/api/escadrons', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (escadronsResponse.ok) {
+                    const escadronsData = await escadronsResponse.json();
+                    console.log('✅ Escadrons récupérés:', escadronsData);
+                    setAvailableEscadrons(escadronsData);
+                } else {
+                    console.error('❌ Erreur lors de la récupération des escadrons:', escadronsResponse.status);
+                }
+
+            } catch (error) {
+                console.error("❌ Erreur lors de la récupération des options de filtres:", error);
+            } finally {
+                setIsLoadingFilters(false);
+            }
+        };
+
+        fetchFilterOptions();
+    }, [token]);
+
+    // --- Récupération des statistiques avec filtres ---
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!token) return;
+
+            setIsLoadingStats(true);
+            setErrorStats(null);
+
+            try {
+                console.log('🔄 Récupération des statistiques...');
+                console.log('📊 Filtres appliqués:', {
+                    service: selectedService || 'TOUS',
+                    escadron: selectedEscadron || 'TOUS'
+                });
+
+                const currentClientTime = new Date();
+                const spaDateMoment = getHistoricalDate(currentClientTime, 'Indian/Antananarivo');
+                const formattedSpaDate = spaDateMoment.format('YYYY-MM-DD');
+
+                setDisplayDateLabel(spaDateMoment.format('DD/MM/YYYY'));
+                setPrintDate(spaDateMoment.format('DD/MM/YYYY'));
+
+                // Construire les paramètres de requête avec les filtres
+                const queryParams = new URLSearchParams();
+                queryParams.append('date', formattedSpaDate);
+
+                if (selectedService && selectedService.trim() !== '') {
+                    queryParams.append('service', selectedService);
+                    console.log('🏢 Filtre service appliqué:', selectedService);
+                }
+                if (selectedEscadron && selectedEscadron.trim() !== '') {
+                    queryParams.append('escadron', selectedEscadron);
+                    console.log('🎯 Filtre escadron appliqué:', selectedEscadron);
+                }
+
+                const url = `/api/mises-a-jour/cadres/summary?${queryParams.toString()}`;
+                console.log('🔗 URL de requête:', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
                     },
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json()
-                        .catch(() => ({ message: `Erreur HTTP: ${response.status}` })); // Si le corps n'est pas JSON, utilise le statut
-                    throw new Error(errorData.message || `Erreur HTTP: ${response.status}`); // Lance une erreur avec le message du backend ou le statut
+                        .catch(() => ({ message: `Erreur HTTP: ${response.status}` }));
+                    throw new Error(errorData.message || `Erreur HTTP: ${response.status}`);
                 }
 
                 const data = await response.json();
-                // Le log est mis à jour pour refléter la nouvelle route
-                console.log("Données reçues de l'API /api/mises-a-jour/cadres/summary :", data);
+                console.log("✅ Réponse de l'API statistiques:", data);
 
-                // --- Extraction des données avec les clés correctes (uniquement cadres) ---
-                // La nouvelle API retourne directement les statistiques des cadres sans un objet "cadres" imbriqué
-                // Donc on accède directement aux propriétés de 'data'
                 const cadreTotal = data.total_cadres ?? 0;
                 const cadreAbsent = data.absents_cadres ?? 0;
                 const cadreIndisponible = data.indisponibles_cadres ?? 0;
-                // 'present' et 'sur_le_rang' sont aussi directement dans 'data'
-                const cadrePresent = data.presents_cadres ?? (cadreTotal - cadreAbsent - cadreIndisponible);
-                const cadreSurLeRang = data.sur_le_rang_cadres ?? cadrePresent;
+                const cadrePresentCalculated = data.presents_cadres ?? (cadreTotal - cadreAbsent);
+                const cadreSurLeRangCalculated = data.sur_le_rang_cadres ?? (cadrePresentCalculated - cadreIndisponible);
 
-                setCadreStats({
+                const newStats = {
                     total: cadreTotal,
                     absent: cadreAbsent,
                     indisponible: cadreIndisponible,
-                    present: cadrePresent,
-                    surLeRang: cadreSurLeRang // Utilise le champ calculé ou reçu
-                });
+                    present: cadrePresentCalculated,
+                    surLeRang: cadreSurLeRangCalculated
+                };
+
+                console.log('📈 Statistiques calculées:', newStats);
+                setCadreStats(newStats);
 
             } catch (error) {
-                console.error("Erreur lors de la récupération des statistiques:", error);
+                console.error("❌ Erreur lors de la récupération des statistiques:", error);
                 setErrorStats(`Impossible de charger les statistiques. Détails: ${error.message || error}.`);
                 setCadreStats(defaultStats);
             } finally {
@@ -155,23 +214,21 @@ function HomePage() {
 
         fetchStats();
 
-    }, [token]); // Dépendance au token pour relancer le fetch si le token change
+    }, [token, selectedService, selectedEscadron]); // Recharger quand les filtres changent
 
-
-    // --- Récupération des listes de personnes (Absents, Indisponibles) (uniquement pour Cadre) ---
+    // --- Récupération des listes avec filtres ---
     const fetchSpecificList = async (type, category) => {
-        // On ne gère que la catégorie 'cadre' dans ce composant pour l'instant
         if (category !== 'cadre') {
-            console.warn(`WorkspaceSpecificList appelé avec une catégorie non gérée: ${category}`);
+            console.warn(`Liste appelée avec une catégorie non gérée: ${category}`);
             return [];
         }
 
-        // Assurer que 'type' est soit 'absent' soit 'indisponible'
         if (type !== 'absent' && type !== 'indisponible') {
-             console.error(`WorkspaceSpecificList appelé avec un type non valide pour cadre: ${type}`);
+             console.error(`Liste appelée avec un type non valide: ${type}`);
              return [];
         }
 
+        console.log(`🔄 Récupération de la liste des ${type}s...`);
 
         setIsLoadingList(prevState => ({
             ...prevState,
@@ -188,37 +245,39 @@ function HomePage() {
             }
         }));
 
-
         try {
             const queryParams = new URLSearchParams();
-            // Assurez-vous que la valeur envoyée au backend correspond aux valeurs de l'ENUM (ex: 'Absent', 'Indisponible')
-            // Le backend attend 'Absent' ou 'Indisponible' pour le paramètre 'statut'
             const backendStatusValue = type === 'absent' ? 'Absent' : 'Indisponible';
             queryParams.append('statut', backendStatusValue);
 
-            // Obtenir la date SPA pour les appels de liste détaillés aussi
             const currentClientTime = new Date();
             const spaDateMoment = getHistoricalDate(currentClientTime, 'Indian/Antananarivo');
             const formattedSpaDate = spaDateMoment.format('YYYY-MM-DD');
-            queryParams.append('date', formattedSpaDate); // Ajouter le paramètre de date
+            queryParams.append('date', formattedSpaDate);
 
-            // L'URL pour les listes détaillées de cadres est /api/cadres
-            const url = '/api/cadres';
+            // Ajouter les filtres actifs
+            if (selectedService && selectedService.trim() !== '') {
+                queryParams.append('service', selectedService);
+                console.log(`🏢 Filtre service appliqué à la liste ${type}:`, selectedService);
+            }
+            if (selectedEscadron && selectedEscadron.trim() !== '') {
+                queryParams.append('escadron', selectedEscadron);
+                console.log(`🎯 Filtre escadron appliqué à la liste ${type}:`, selectedEscadron);
+            }
 
-            const fullUrl = `${url}?${queryParams.toString()}`;
-            console.log("Fetching list from URL:", fullUrl);
+            const url = `/api/cadres?${queryParams.toString()}`;
+            console.log(`🔗 URL pour liste ${type}:`, url);
 
-            const response = await fetch(fullUrl, {
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
             if (!response.ok) {
                  const errorData = await response.json().catch(() => ({ message: `Erreur HTTP: ${response.status}` }));
-                 // Si l'erreur est 403 Forbidden (accès non autorisé, ex: Standard voit liste service uniquement), on peut afficher un message specifique
                  if (response.status === 403) {
                      throw new Error("Vous n'avez pas les permissions pour voir cette liste détaillée.");
                  }
@@ -226,22 +285,20 @@ function HomePage() {
             }
 
             const data = await response.json();
-            console.log(`Données de liste reçues pour cadre ${type}:`, data);
-            console.log(`Données BRUTES reçues de l'API pour cadre ${type}:`, data);
-            // Mettre à jour l'état avec les données reçues pour le type et la catégorie corrects
+            console.log(`✅ Liste ${type} récupérée:`, data.length, 'éléments');
+
             setPersonListData(prevState => ({
-                ...prevState, // Conserver les données des autres catégories si elles existent
+                ...prevState,
                 cadre: {
-                    ...prevState.cadre, // Conserver les données des autres types de cadres si elles existent
-                    [type]: data // Mettre à jour les données pour le type spécifique ('absent' ou 'indisponible')
+                    ...prevState.cadre,
+                    [type]: data
                 }
             }));
 
-            return data; // Retourner les données pour une utilisation potentielle (ex: par le PDF)
+            return data;
 
         } catch (error) {
-            console.error(`Erreur lors de la récupération de la liste cadre ${type}:`, error);
-             // Mettre à jour l'état d'erreur pour le type et la catégorie corrects
+            console.error(`❌ Erreur lors de la récupération de la liste ${type}:`, error);
             setErrorList(prevState => ({
                 ...prevState,
                 cadre: {
@@ -249,7 +306,6 @@ function HomePage() {
                     [type]: `Impossible de charger la liste. Détails: ${error.message || error}.`
                 }
             }));
-             // S'assurer que la liste est vide en cas d'erreur
             setPersonListData(prevState => ({
                 ...prevState,
                 cadre: {
@@ -257,9 +313,8 @@ function HomePage() {
                     [type]: []
                 }
             }));
-            return []; // Retourner un tableau vide en cas d'erreur
+            return [];
         } finally {
-            // Désactiver l'état de chargement pour le type et la catégorie corrects
             setIsLoadingList(prevState => ({
                 ...prevState,
                 cadre: {
@@ -270,57 +325,162 @@ function HomePage() {
         }
     };
 
+    // --- Gestionnaire de changement de filtre ---
+    const handleServiceChange = (e) => {
+        const newService = e.target.value;
+        console.log('🏢 Changement de service:', newService);
+        setSelectedService(newService);
+        // Réinitialiser l'affichage des listes quand on change les filtres
+        setDisplayListInfo(null);
+        setPersonListData(defaultPersonListData);
+    };
 
-    // --- Gestionnaire de clic pour les cartes ET le bouton "Voir la liste" (contrôle l'affichage normal) ---
+    const handleEscadronChange = (e) => {
+        const newEscadron = e.target.value;
+        console.log('🎯 Changement d\'escadron:', newEscadron);
+        setSelectedEscadron(newEscadron);
+        // Réinitialiser l'affichage des listes quand on change les filtres
+        setDisplayListInfo(null);
+        setPersonListData(defaultPersonListData);
+    };
+
+    // --- Fonctions d'exportation Excel ---
+    const exportStatsToExcel = () => {
+        setIsExporting(true);
+        try {
+            console.log('📊 Exportation des statistiques vers Excel...');
+
+            // Créer les données pour le fichier Excel
+            const statsData = [
+                ['Statistiques SPA du', displayDateLabel],
+                [''],
+                ['Catégorie', 'Total (R)', 'Absent (A)', 'Présent (P)', 'Indisponible (I)', 'Sur le rang (S)'],
+                ['Cadres', cadreStats.total, cadreStats.absent, cadreStats.present, cadreStats.indisponible, cadreStats.surLeRang]
+            ];
+
+            // Ajouter les filtres appliqués
+            if (selectedService || selectedEscadron) {
+                statsData.splice(2, 0, ['Filtres appliqués:']);
+                if (selectedService) {
+                    statsData.splice(3, 0, ['Service:', selectedService]);
+                }
+                if (selectedEscadron) {
+                    const escadronName = availableEscadrons.find(e => e.id.toString() === selectedEscadron)?.nom || `Escadron ${selectedEscadron}`;
+                    statsData.splice(selectedService ? 4 : 3, 0, ['Escadron:', escadronName]);
+                }
+                statsData.splice(selectedService && selectedEscadron ? 5 : 4, 0, ['']);
+            }
+
+            const worksheet = XLSX.utils.aoa_to_sheet(statsData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Statistiques');
+
+            // Générer le nom du fichier avec les filtres
+            let fileName = `statistiques_spa_${printDate.replace(/\//g, '-')}`;
+            if (selectedService) fileName += `_${selectedService}`;
+            if (selectedEscadron) fileName += `_escadron${selectedEscadron}`;
+            fileName += '.xlsx';
+
+            XLSX.writeFile(workbook, fileName);
+            console.log('✅ Fichier Excel généré:', fileName);
+        } catch (error) {
+            console.error("❌ Erreur lors de l'exportation Excel:", error);
+            setErrorStats(`Erreur lors de l'exportation Excel: ${error.message}`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportListToExcel = async (type) => {
+        setIsExporting(true);
+        try {
+            console.log(`📊 Exportation de la liste ${type} vers Excel...`);
+
+            // S'assurer que les données sont chargées
+            let data = personListData.cadre[type];
+            if (!data || data.length === 0) {
+                console.log(`⏳ Récupération des données pour ${type}...`);
+                data = await fetchSpecificList(type, 'cadre');
+            }
+
+            if (!data || data.length === 0) {
+                alert(`Aucune donnée à exporter pour les ${type}s.`);
+                return;
+            }
+
+            // Préparer les données pour Excel
+            const headers = ['Grade', 'Nom', 'Prénom', 'Matricule', 'Service', 'Escadron', 'Motif'];
+            const excelData = [headers];
+
+            data.forEach(person => {
+                excelData.push([
+                    person.grade || '',
+                    person.nom || '',
+                    person.prenom || '',
+                    person.matricule || '',
+                    person.service || '',
+                    person.EscadronResponsable?.nom || person.cours || '',
+                    person.motif_absence || ''
+                ]);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, `${type}s`);
+
+            // Générer le nom du fichier
+            let fileName = `liste_${type}s_${printDate.replace(/\//g, '-')}`;
+            if (selectedService) fileName += `_${selectedService}`;
+            if (selectedEscadron) fileName += `_escadron${selectedEscadron}`;
+            fileName += '.xlsx';
+
+            XLSX.writeFile(workbook, fileName);
+            console.log('✅ Fichier Excel généré:', fileName);
+        } catch (error) {
+            console.error("❌ Erreur lors de l'exportation Excel:", error);
+            setErrorStats(`Erreur lors de l'exportation Excel: ${error.message}`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // --- Gestionnaire de clic pour les cartes ---
     const handleCardClick = (type) => {
+        console.log(`🖱️ Clic sur carte: ${type}`);
+
         let requestedTypes = [];
-        // Déterminer quels types de listes de cadres sont demandés
         if (type === 'absent') {
             requestedTypes = ['absent'];
         } else if (type === 'indisponible') {
             requestedTypes = ['indisponible'];
         } else if (type === 'absent_indisponible') {
-             // Si le bouton "Voir la liste (Absents, Indisponibles)" est cliqué
             requestedTypes = ['absent', 'indisponible'];
         } else {
-            // Clic sur une autre carte (Total, Présent, Sur le rang)
             setDisplayListInfo(null);
             return;
         }
 
-        // La catégorie est toujours 'cadre' pour l'affichage normal des listes détaillées
         const newDisplayInfo = { category: 'cadre', types: requestedTypes };
 
-        // Vérifier si l'on a cliqué à nouveau sur la même catégorie et le(s) même(s) type(s)
-        // pour basculer l'affichage (cacher la liste si déjà affichée)
         const isSameDisplay = displayListInfo &&
                                displayListInfo.category === newDisplayInfo.category &&
                                displayListInfo.types.length === newDisplayInfo.types.length &&
                                displayListInfo.types.every(t => newDisplayInfo.types.includes(t));
 
         if (isSameDisplay) {
-            // Si on reclique sur la même carte/le même bouton, on cache les listes
+            console.log('🔄 Masquage de la liste (même sélection)');
             setDisplayListInfo(null);
-            // setPersonListData(defaultPersonListData); // Optionnel: effacer les données des listes
         } else {
-            // Sinon, on définit les informations pour afficher la(les) nouvelle(s) liste(s)
+            console.log('📋 Affichage de la liste:', requestedTypes);
             setDisplayListInfo(newDisplayInfo);
 
-            // Si l'utilisateur n'est pas authentifié (pas de token), afficher une erreur et ne pas fetcher
             if (!token) {
-                 // Afficher des messages d'erreur pour chaque type de liste demandé
                  const newErrorState = { cadre: { absent: null, indisponible: null } };
                  if(requestedTypes.includes('absent')) newErrorState.cadre.absent = "Authentification requise pour voir cette liste.";
                  if(requestedTypes.includes('indisponible')) newErrorState.cadre.indisponible = "Authentification requise pour voir cette liste.";
                  setErrorList(newErrorState);
-                 // S'assurer que les données pour cette catégorie sont vides si non authentifié
-                 setPersonListData(defaultPersonListData); // S'assurer que les listes sont vides
+                 setPersonListData(defaultPersonListData);
             } else {
-                 // Si authentifié, on va chercher les données des listes demandées
-                 // Optionnel: effacer les données précédentes si on change de liste affichée
-                 // setPersonListData(defaultPersonListData);
-
-                 // Réinitialiser les erreurs spécifiques pour les types demandés avant de fetcher
                  setErrorList(prevState => {
                      const nextState = { ...prevState, cadre: { ...prevState.cadre } };
                      if(requestedTypes.includes('absent')) nextState.cadre.absent = null;
@@ -328,191 +488,251 @@ function HomePage() {
                      return nextState;
                  });
 
-
-                 // Lancer les fetches pour chaque type de liste demandé
                  requestedTypes.forEach(typeToFetch => {
-                     fetchSpecificList(typeToFetch, 'cadre'); // On ne gère que les cadres ici
+                     fetchSpecificList(typeToFetch, 'cadre');
                  });
             }
         }
     };
 
-
-    // Utiliser useMemo pour déterminer le titre de la section des listes affichées (vue normale)
-    const mainListSectionTitle = useMemo(() => {
-        // Vérifier si displayListInfo existe, si la catégorie est 'cadre' et si au moins un type est demandé
-        if (!displayListInfo || displayListInfo.category !== 'cadre' || displayListInfo.types.length === 0) return null;
-
-        const category = 'Cadre'; // La catégorie est fixe ici
-
-        // Construire le titre en fonction des types demandés
-        if (displayListInfo.types.length === 1) {
-            const type = displayListInfo.types[0]; // 'absent' ou 'indisponible'
-             // Capitaliser le premier caractère pour le titre
-            const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
-            return `Liste des ${capitalizedType}s (${category}s)`;
-        } else if (displayListInfo.types.length === 2 && displayListInfo.types.includes('absent') && displayListInfo.types.includes('indisponible')) {
-            // Cas spécifique pour les deux listes combinées
-            return `Détails ${category}s (Absents et Indisponibles)`;
-        }
-         // Cas par défaut ou inattendu
-        return `Liste des ${category}s`;
-
-    }, [displayListInfo]); // Recalculer si displayListInfo change
-
-
-    // Vérifier si une liste est en cours de chargement pour un type donné (pour l'affichage normal)
-    const isSpecificListLoading = (type) => {
-        // Vérifier si isLoadingList.cadre existe avant d'y accéder
-        return isLoadingList.cadre?.[type] ?? false;
-    };
-
-    // Vérifier si une erreur est présente pour une liste spécifique (pour l'affichage normal)
-    const getSpecificListError = (type) => {
-        // Vérifier si errorList.cadre existe avant d'y accéder
-        return errorList.cadre?.[type] ?? null;
-    };
-
-    // Vérifier si le bouton "Voir la liste (Absents, Indisponibles)" est en cours de chargement (pour l'affichage normal)
-    const isCombinedListLoading = () => {
-        // Le bouton charge si la liste 'absent' OU 'indisponible' est en cours de chargement
-        return isSpecificListLoading('absent') || isSpecificListLoading('indisponible');
-    };
-
-
-    // Function to trigger PDF generation using jspdf and html2canvas (only for cadre)
+    // --- Fonction de génération PDF (mise à jour pour inclure les filtres) ---
     const handleGeneratePdf = async () => {
         setIsGeneratingPdf(true);
-        setErrorStats(null); // Clear any previous stats errors
+        setErrorStats(null);
 
-        // Définir les types de listes de cadres nécessaires pour le PDF (Absents et Indisponibles)
+        console.log('📄 Génération du PDF...');
+
         const typesToFetch = ['absent', 'indisponible'];
         const fetchPromises = typesToFetch.map(type => {
-            // Vérifier si les données pour ce type de cadre sont déjà chargées ET non vides.
-            // Si c'est le cas, on n'a pas besoin de les fetcher à nouveau.
-            // Sinon, on lance le fetch.
             const dataAlreadyLoaded = personListData.cadre[type]?.length > 0 && !isLoadingList.cadre[type];
-            const errorFetching = errorList.cadre[type]; // Vérifier si une erreur s'est produite lors d'un fetch précédent
+            const errorFetching = errorList.cadre[type];
 
-             // Si données déjà chargées ou erreur, on résout la promesse immédiatement
-             // Si données non chargées ET pas en cours de chargement ET pas d'erreur précédente, on fetch
             if (dataAlreadyLoaded || errorFetching || isSpecificListLoading(type)) {
-                 // Si erreur, on rejette pour que Promise.all échoue
                  if(errorFetching) return Promise.reject(new Error(`Impossible de récupérer la liste des ${type}s pour le PDF.`));
-                 // Si déjà chargé ou en cours, on résout avec les données actuelles
                  return Promise.resolve(personListData.cadre[type] || []);
             } else {
-                // Lancer le fetch de la liste spécifique pour les cadres
-                return fetchSpecificList(type, 'cadre'); // On ne gère que les cadres ici
+                return fetchSpecificList(type, 'cadre');
             }
         });
 
         try {
-            // Attendre que toutes les données nécessaires pour le PDF soient récupérées (ou résolues si déjà chargées)
-             // Promise.all attend que toutes les promesses soient résolues. Si une rejette, Promise.all rejette immédiatement.
             await Promise.all(fetchPromises);
-
-            // ** Définir l'état printCategory pour indiquer que la zone d'impression doit être rendue pour les cadres **
-            // Cela va rendre la div cachée avec le contenu formaté pour le PDF.
             setPrintCategory('cadre');
+            await new Promise(resolve => setTimeout(resolve, 150));
 
-            // Attendre un court instant pour permettre au DOM (y compris la zone d'impression cachée) de se mettre à jour
-            // avant que html2canvas tente de la capturer. Un délai est crucial ici.
-            await new Promise(resolve => setTimeout(resolve, 150)); // Augmenté légèrement pour plus de sécurité
-
-            // Récupérer l'élément DOM de la zone d'impression en utilisant la ref
             const input = printAreaRef.current;
-
             if (!input) {
-                // Si la ref est null, la zone d'impression n'a pas été rendue correctement
                 throw new Error("Zone d'impression introuvable dans le DOM.");
             }
 
-            // Utiliser html2canvas pour capturer le contenu de la zone d'impression en tant qu'image (canvas)
             const canvas = await html2canvas(input, {
-                scale: 3, // Augmenter l'échelle pour une meilleure résolution de l'image
-                logging: false, // Désactiver le logging de html2canvas pour nettoyer la console
-                useCORS: true // Important si vos images (logos, etc.) proviennent d'une autre origine
+                scale: 3,
+                logging: false,
+                useCORS: true
             });
 
-            // Convertir le canvas en image PNG encodée en base64
             const imgData = canvas.toDataURL('image/png');
-
-            // Initialiser jsPDF avec l orientation portrait ('p'), unites millimetres ('mm'), format A4
             const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210; // Largeur d'une page A4 en mm
-            const pageHeight = 297; // Hauteur d'une page A4 en mm
-            // Calculer la hauteur de l'image capturée par rapport à la largeur de la page
+            const imgWidth = 210;
+            const pageHeight = 297;
             const imgHeight = canvas.height * imgWidth / canvas.width;
-            let heightLeft = imgHeight; // Hauteur restante de l'image à ajouter au PDF
-            let position = 0; // Position verticale actuelle sur la page PDF
+            let heightLeft = imgHeight;
+            let position = 0;
 
-            // Ajouter la première page de l'image au PDF
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight; // Réduire la hauteur restante de l'image de la hauteur d'une page
+            heightLeft -= pageHeight;
 
-            // Gérer le cas où le contenu dépasse une page (ajouter de nouvelles pages)
             while (heightLeft >= 0) {
-                // Calculer la position pour la nouvelle page (négative pour afficher la partie suivante de l'image)
                 position = heightLeft - imgHeight;
-                pdf.addPage(); // Ajouter une nouvelle page
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight); // Ajouter la partie suivante de l'image
-                heightLeft -= pageHeight; // Réduire la hauteur restante
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
             }
 
-            // Sauvegarder le fichier PDF avec un nom incluant la date d'impression
-            pdf.save(`rapport_spa_cadres_${printDate}.pdf`);
+            // Ajouter les filtres au nom du fichier PDF
+            let pdfFileName = `rapport_spa_cadres_${printDate.replace(/\//g, '-')}`;
+            if (selectedService) pdfFileName += `_${selectedService}`;
+            if (selectedEscadron) pdfFileName += `_escadron${selectedEscadron}`;
+            pdfFileName += '.pdf';
+
+            pdf.save(pdfFileName);
+            console.log('✅ PDF généré:', pdfFileName);
 
         } catch (error) {
-            console.error("Erreur lors de la génération du PDF:", error);
-            // Afficher un message d'erreur à l'utilisateur sur l'UI
+            console.error("❌ Erreur lors de la génération du PDF:", error);
             setErrorStats(`Impossible de générer le PDF. Détails: ${error.message || error}.`);
         } finally {
-            // Désactiver l'état de génération PDF once the process is complete (success or error)
             setIsGeneratingPdf(false);
-
             setTimeout(() => {
                 setPrintCategory(null);
-            }, 150); // Petit délai ajusté
+            }, 150);
         }
     };
 
+    // --- Fonctions utilitaires ---
+    const mainListSectionTitle = useMemo(() => {
+        if (!displayListInfo || displayListInfo.category !== 'cadre' || displayListInfo.types.length === 0) return null;
 
+        let title = '';
 
+        if (displayListInfo.types.length === 1) {
+            const type = displayListInfo.types[0];
+            const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+            title = `${capitalizedType}s`; // ✅ SUPPRIMÉ LA RÉPÉTITION
+        } else if (displayListInfo.types.length === 2 && displayListInfo.types.includes('absent') && displayListInfo.types.includes('indisponible')) {
+            title = `Absents et Indisponibles`; // ✅ SUPPRIMÉ LA RÉPÉTITION
+        } else {
+            title = `Personnel`;
+        }
+
+        // Ajouter les filtres au titre
+        const filters = [];
+        if (selectedService) filters.push(`Service: ${selectedService}`);
+        if (selectedEscadron) {
+            const escadronName = availableEscadrons.find(e => e.id.toString() === selectedEscadron)?.nom || `Escadron ${selectedEscadron}`;
+            filters.push(escadronName);
+        }
+
+        if (filters.length > 0) {
+            title += ` - ${filters.join(', ')}`;
+        }
+
+        return title;
+
+    }, [displayListInfo, selectedService, selectedEscadron, availableEscadrons]);
+
+    const isSpecificListLoading = (type) => {
+        return isLoadingList.cadre?.[type] ?? false;
+    };
+
+    const getSpecificListError = (type) => {
+        return errorList.cadre?.[type] ?? null;
+    };
+
+    const isCombinedListLoading = () => {
+        return isSpecificListLoading('absent') || isSpecificListLoading('indisponible');
+    };
 
     const cadreAbsentMotifCounts = useMemo(() => {
-        console.log("Calculating cadre absent motif counts...");
         return groupAndCountMotifs(personListData.cadre.absent);
-    }, [personListData.cadre.absent]); // Dépend de la liste des absents cadre
+    }, [personListData.cadre.absent]);
 
     const cadreIndisponibleMotifCounts = useMemo(() => {
-        console.log("Calculating cadre indisponible motif counts...");
         return groupAndCountMotifs(personListData.cadre.indisponible);
-    }, [personListData.cadre.indisponible]); // Dépend de la liste des indisponibles cadre
+    }, [personListData.cadre.indisponible]);
 
+    // Fonction pour réinitialiser les filtres
+    const handleResetFilters = () => {
+        console.log('🔄 Réinitialisation des filtres');
+        setSelectedService('');
+        setSelectedEscadron('');
+        setDisplayListInfo(null);
+        setPersonListData(defaultPersonListData);
+    };
 
     // Afficher le tableau de bord avec les statistiques
     return (
-        <div className="container mt-4">
-            {/* Contenu normal de la page - Visible par l'utilisateur */}
-            {/* Cette div contient tout ce qui n'est PAS la zone d'impression cachée */}
-            <div>
-                {/* Afficher l'état de chargement ou l'erreur pour les statistiques */}
-                {isLoadingStats && <div className="alert alert-info">Chargement des statistiques...</div>}
-                {errorStats && <div className="alert alert-danger">{errorStats}</div>}
-                {/* Afficher le message de génération PDF */}
-                {isGeneratingPdf && <div className="alert alert-info">Génération du PDF... Veuillez patienter.</div>}
+        <div className="container-fluid homepage-container">
+            {/* Messages d'état */}
+            {isLoadingStats && <div className="alert alert-info">Chargement des statistiques...</div>}
+            {errorStats && <div className="alert alert-danger">{errorStats}</div>}
+            {isGeneratingPdf && <div className="alert alert-info">Génération du PDF... Veuillez patienter.</div>}
+            {isExporting && <div className="alert alert-info">Exportation Excel en cours... Veuillez patienter.</div>}
 
-                {/* Section Cadres */}
-                {/* Afficher seulement si les stats sont chargées (ou non chargées avec erreur) */}
-                {!isLoadingStats && (
-                    <>
-                        <h2 className="mb-3">SPA du  {displayDateLabel}  </h2> {/* Titre visible normal */}
-                        <div className="row row-cols-1 row-cols-sm-2 row-cols-md-5 g-4 mb-3">
-                            {/* Cartes Cadres */}
-                            {/* Carte Total (Non cliquable) */}
+            {/* ✅ SECTION STATS - CONTENEUR FIXE ISOLÉ */}
+            {!isLoadingStats && (
+                <div className="homepage-stats-section">
+                    <div className="spa-header">
+                        <h2 className="mb-3">SPA du {displayDateLabel}</h2>
+                    </div>
+
+                    {/* Section des filtres */}
+                    <div className="card mb-4 filters-card">
+                        <div className="card-header">
+                            <h5 className="mb-0">
+                                <svg className="bi me-2" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                                </svg>
+                                Filtres
+                            </h5>
+                        </div>
+                        <div className="card-body">
+                            <div className="row g-3">
+                                <div className="col-12 col-md-4">
+                                    <label htmlFor="serviceFilter" className="form-label">Service</label>
+                                    <select
+                                        id="serviceFilter"
+                                        className="form-select"
+                                        value={selectedService}
+                                        onChange={handleServiceChange}
+                                        disabled={isLoadingFilters || isLoadingStats}
+                                    >
+                                        <option value="">Tous les services</option>
+                                        {availableServices.map((service, index) => (
+                                            <option key={index} value={service}>{service}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-12 col-md-4">
+                                    <label htmlFor="escadronFilter" className="form-label">Escadron</label>
+                                    <select
+                                        id="escadronFilter"
+                                        className="form-select"
+                                        value={selectedEscadron}
+                                        onChange={handleEscadronChange}
+                                        disabled={isLoadingFilters || isLoadingStats}
+                                    >
+                                        <option value="">Tous les escadrons</option>
+                                        {availableEscadrons.map((escadron) => (
+                                            <option key={escadron.id} value={escadron.id}>
+                                                {escadron.nom}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-12 col-md-4 d-flex align-items-end">
+                                    <div className="d-flex flex-column flex-md-row gap-2 w-100">
+                                        <button
+                                            className="btn btn-outline-secondary flex-fill"
+                                            onClick={handleResetFilters}
+                                            disabled={isLoadingStats}
+                                        >
+                                            🔄 Réinitialiser
+                                        </button>
+                                        <button
+                                            className="btn btn-success flex-fill"
+                                            onClick={exportStatsToExcel}
+                                            disabled={isLoadingStats || isExporting}
+                                        >
+                                            📊 Export Stats
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Affichage des filtres actifs */}
+                            {(selectedService || selectedEscadron) && (
+                                <div className="active-filters">
+                                    <small className="text-muted">
+                                        <strong>Filtres actifs:</strong>
+                                        {selectedService && <span className="badge bg-primary ms-1">Service: {selectedService}</span>}
+                                        {selectedEscadron && (
+                                            <span className="badge bg-info ms-1">
+                                                {availableEscadrons.find(e => e.id.toString() === selectedEscadron)?.nom || `Escadron ${selectedEscadron}`}
+                                            </span>
+                                        )}
+                                    </small>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ✅ CARTES STATISTIQUES - TAILLE FIXE */}
+                    <div className="stats-container-fixed">
+                        <div className="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+                            {/* Carte Total */}
                             <div className="col">
-                                <div className="card text-center h-100 dashboard-card">
+                                <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-primary" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
@@ -523,9 +743,11 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Absent (Cliquable pour afficher la liste détaillée) */}
+                            {/* Carte Absent */}
                             <div className="col">
-                                <div className="card text-center h-100 dashboard-card clickable-card" onClick={() => handleCardClick('absent')}>
+                                <div className="card text-center h-100 dashboard-card stats-card clickable-card"
+                                     onClick={() => handleCardClick('absent')}
+                                     style={{ cursor: 'pointer' }}>
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-danger" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -537,9 +759,9 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Présent (Non cliquable) */}
+                            {/* Carte Présent */}
                             <div className="col">
-                                <div className="card text-center h-100 dashboard-card">
+                                <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-success" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
@@ -550,9 +772,11 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Indisponible (Cliquable pour afficher la liste détaillée) */}
+                            {/* Carte Indisponible */}
                             <div className="col">
-                                <div className="card text-center h-100 dashboard-card clickable-card" onClick={() => handleCardClick('indisponible')}>
+                                <div className="card text-center h-100 dashboard-card stats-card clickable-card"
+                                     onClick={() => handleCardClick('indisponible')}
+                                     style={{ cursor: 'pointer' }}>
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-warning" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
@@ -564,141 +788,150 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Sur le rang (Non cliquable) */}
+                            {/* Carte Sur le rang */}
                             <div className="col">
-                                <div className="card text-center h-100 dashboard-card">
+                                <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-info" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2zM9.5 3.5v-2L14 8.5V14h-1V8.5a1.5 1.5 0 0 0-1.5-1.5H9.5z"/>
-                                            <path d="M8 11h-1v-.5a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5V11h-1v-.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5V11z"/>
                                         </svg>
                                         <h5 className="card-title">Sur le rang (S)</h5>
                                         <p className="card-text fs-3">{cadreStats.surLeRang ?? 0}</p>
                                     </div>
                                 </div>
                             </div>
-
-                        </div> {/* Fin de la rangée Cadres */}
-                        {/* Boutons pour Cadres */}
-                        <div className="row mb-5">
-                            <div className="col text-center">
-                                {/* Bouton "Voir la liste" */}
-                                <button
-                                    className="btn btn-outline-primary me-2"
-                                    onClick={() => handleCardClick('absent_indisponible')}
-                                    // Désactiver si l'une des listes est en cours de chargement ou si le PDF est en génération
-                                    disabled={isCombinedListLoading() || isGeneratingPdf}
-                                >
-                                    {isCombinedListLoading() && displayListInfo?.category === 'cadre' && displayListInfo?.types.includes('absent') && displayListInfo?.types.includes('indisponible') ?
-                                        'Chargement...' :
-                                        `Voir la liste (Absents: ${cadreStats.absent ?? 0}, Indisponibles: ${cadreStats.indisponible ?? 0})`
-                                    }
-                                </button>
-                                {/* Bouton "Imprimer" pour Cadres */}
-                                <button
-                                    className="btn btn-secondary"
-                                    onClick={handleGeneratePdf} // Appel de la fonction de génération de PDF
-                                     // Désactiver si les stats ou les listes sont en chargement, ou si le PDF est déjà en génération
-                                    disabled={isLoadingStats || isCombinedListLoading() || isGeneratingPdf}
-                                >
-                                    {isGeneratingPdf ? 'Génération PDF...' : 'Imprimer'}
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* Section Élèves - Supprimée dans le backend, donc pas affichée ici */}
-                {/* Si vous réintroduisez les élèves, ajoutez une section similaire ici */}
-
-                {/* Affichage conditionnel des listes des personnes (Tableaux de détail) - Uniquement pour Cadre (Vue normale) */}
-                {/* Cette section s'affiche uniquement si displayListInfo est défini pour 'cadre' et demande l'affichage de types */}
-                {displayListInfo && displayListInfo.category === 'cadre' && displayListInfo.types.length > 0 && (
-                    <div className="row mt-4"> {/* mt-4 pour l'espacement avec les sections de stats */}
-                        <div className="col">
-                             {/* Titre principal pour la section des listes (vue normale) */}
-                            <h3 className="mb-3">{mainListSectionTitle}</h3>
-
-                            {/* Affichage de la liste des Absents si demandée (vue normale) */}
-                            {displayListInfo.types.includes('absent') && (
-                                <>
-                                     {/* Afficher l'état de chargement ou l'erreur pour la liste Absent (pour cadre) */}
-                                    {isSpecificListLoading('absent') && <div className="alert alert-info">Chargement des Absents...</div>}
-                                    {getSpecificListError('absent') && <div className="alert alert-danger">{getSpecificListError('absent')}</div>}
-
-                                     {/* Afficher la liste des Absents si non en chargement et sans erreur, et si des données sont présentes (pour cadre) */}
-                                    {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length > 0 && (
-                                        <PersonList listTitle={`Liste des Absents (Cadres)`} data={personListData.cadre.absent} category="cadre" />
-                                    )}
-                                     {/* Message si aucune donnée n'est trouvée pour les Absents (pour cadre) */}
-                                    {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length === 0 && (
-                                        <div className="alert alert-info">Aucun Absent trouvé pour cette catégorie.</div>
-                                    )}
-                                     {/* Ajouter un espace entre les deux tableaux si les deux sont affichés */}
-                                    {displayListInfo.types.includes('indisponible') && <hr className="my-4"/>}
-                                </>
-                            )}
-
-                             {/* Affichage de la liste des Indisponibles si demandée (vue normale) */}
-                             {displayListInfo.types.includes('indisponible') && (
-                                 <>
-                                     {/* Afficher l'état de chargement ou l'erreur pour la liste Indisponible (pour cadre) */}
-                                    {isSpecificListLoading('indisponible') && <div className="alert alert-info">Chargement des Indisponibles...</div>}
-                                    {getSpecificListError('indisponible') && <div className="alert alert-danger">{getSpecificListError('indisponible')}</div>}
-
-                                     {/* Afficher la liste des Indisponibles si non en chargement et sans erreur, et si des données sont présentes (pour cadre) */}
-                                    {!isSpecificListLoading('indisponible') && !getSpecificListError('indisponible') && personListData.cadre?.indisponible.length > 0 && (
-                                         <PersonList listTitle={`Liste des Indisponibles (Cadres)`} data={personListData.cadre.indisponible} category="cadre" />
-                                    )}
-                                     {/* Message si aucune donnée n'est trouvée pour les Indisponibles (pour cadre) */}
-                                    {!isSpecificListLoading('indisponible') && !getSpecificListError('indisponible') && personListData.cadre?.indisponible.length === 0 && (
-                                         <div className="alert alert-info">Aucun Indisponible trouvé pour cette catégorie.</div>
-                                    )}
-                                 </>
-                             )}
-
-                             {/* Message si displayListInfo est défini mais qu'aucune liste n'est incluse (cas inattendu) */}
-                            {displayListInfo.category === 'cadre' && displayListInfo.types.length === 0 && (
-                                 <div className="alert alert-warning">Aucune liste spécifiée à afficher.</div>
-                            )}
-
-
                         </div>
                     </div>
-                )}
-            </div> {/* Fin de la div du contenu normal */}
 
+                    {/* Boutons d'actions */}
+                    <div className="actions-container">
+                        <div className="row">
+                            <div className="col">
+                                <div className="d-flex flex-column flex-md-row justify-content-center gap-2">
+                                    <button
+                                        className="btn btn-outline-primary"
+                                        onClick={() => handleCardClick('absent_indisponible')}
+                                        disabled={isCombinedListLoading() || isGeneratingPdf}
+                                    >
+                                        {isCombinedListLoading() && displayListInfo?.category === 'cadre' && displayListInfo?.types.includes('absent') && displayListInfo?.types.includes('indisponible') ?
+                                            'Chargement...' :
+                                            `Voir la liste (A: ${cadreStats.absent ?? 0}, I: ${cadreStats.indisponible ?? 0})`
+                                        }
+                                    </button>
+
+                                    <div className="export-buttons-container d-flex flex-column flex-md-row gap-2">
+                                        <button
+                                            className="btn btn-outline-success"
+                                            onClick={() => exportListToExcel('absent')}
+                                            disabled={isExporting || isLoadingStats}
+                                        >
+                                            📋 Export Absents
+                                        </button>
+
+                                        <button
+                                            className="btn btn-outline-warning"
+                                            onClick={() => exportListToExcel('indisponible')}
+                                            disabled={isExporting || isLoadingStats}
+                                        >
+                                            📋 Export Indispo
+                                        </button>
+
+                                        <button
+                                            className="btn btn-secondary"
+                                            onClick={handleGeneratePdf}
+                                            disabled={isLoadingStats || isCombinedListLoading() || isGeneratingPdf}
+                                        >
+                                            {isGeneratingPdf ? 'Génération PDF...' : '🖨️ Imprimer'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ✅ SECTION TABLEAU - CONTENEUR SEPARÉ QUI PEUT GRANDIR */}
+            {displayListInfo && displayListInfo.category === 'cadre' && displayListInfo.types.length > 0 && (
+                <div className="homepage-table-section">
+                    <div className="person-list-container">
+                        <div className="row">
+                            <div className="col">
+                                <h3 className="text-wrap-mobile">{mainListSectionTitle}</h3>
+
+                                {/* Affichage de la liste des Absents */}
+                                {displayListInfo.types.includes('absent') && (
+                                    <>
+                                        {isSpecificListLoading('absent') && <div className="alert alert-info">Chargement des Absents...</div>}
+                                        {getSpecificListError('absent') && <div className="alert alert-danger">{getSpecificListError('absent')}</div>}
+
+                                        {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length > 0 && (
+                                            <PersonList data={personListData.cadre.absent} displayMode="table" />
+                                        )}
+                                        {!isSpecificListLoading('absent') && !getSpecificListError('absent') && personListData.cadre?.absent.length === 0 && (
+                                            <div className="alert alert-info">Aucun Absent trouvé pour ces critères.</div>
+                                        )}
+                                        {displayListInfo.types.includes('indisponible') && <hr className="my-4"/>}
+                                    </>
+                                )}
+
+                                {/* Affichage de la liste des Indisponibles */}
+                                {displayListInfo.types.includes('indisponible') && (
+                                    <>
+                                        {isSpecificListLoading('indisponible') && <div className="alert alert-info">Chargement des Indisponibles...</div>}
+                                        {getSpecificListError('indisponible') && <div className="alert alert-danger">{getSpecificListError('indisponible')}</div>}
+
+                                        {!isSpecificListLoading('indisponible') && !getSpecificListError('indisponible') && personListData.cadre?.indisponible.length > 0 && (
+                                             <PersonList data={personListData.cadre.indisponible} displayMode="table" />
+                                        )}
+                                        {!isSpecificListLoading('indisponible') && !getSpecificListError('indisponible') && personListData.cadre?.indisponible.length === 0 && (
+                                             <div className="alert alert-info">Aucun Indisponible trouvé pour ces critères.</div>
+                                        )}
+                                    </>
+                                )}
+
+                                {displayListInfo.category === 'cadre' && displayListInfo.types.length === 0 && (
+                                     <div className="alert alert-warning">Aucune liste spécifiée à afficher.</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Zone d'impression - Cachée visuellement mais présente dans le DOM pour html2canvas */}
-            {/* Les styles en ligne sont ajustés pour correspondre à l'image fournie */}
             <div className="printable-area" ref={printAreaRef} style={{
                 position: 'absolute',
-                left: '-9999px', // Cacher hors de l'écran
+                left: '-9999px',
                 top: '-9999px',
-                zIndex: '-1', // S'assurer qu'il est en dessous de tout
-                backgroundColor: '#fff', // Assurez-vous d'avoir un fond blanc
-                padding: '15mm', // Marge autour du contenu
-                width: '210mm', // Largeur A4
-                boxSizing: 'border-box', // Inclure le padding dans la largeur
-                fontFamily: 'Arial, sans-serif', // Utiliser Arial ou une autre police simple
-                fontSize: '10pt', // Taille de police de base
-                color: '#000', // Couleur du texte
-                lineHeight: '1.5' // Espacement des lignes
+                zIndex: '-1',
+                backgroundColor: '#fff',
+                padding: '15mm',
+                width: '210mm',
+                boxSizing: 'border-box',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '10pt',
+                color: '#000',
+                lineHeight: '1.5'
             }}>
-                {/* Ce contenu sera capturé par html2canvas */}
-                {/* Rendu conditionnel basé sur le nouvel état printCategory */}
                 {printCategory === 'cadre' && (
                     <>
-                        {/* En-tête du rapport - LABEL RÉTABLI */}
+                        {/* En-tête du rapport avec filtres */}
                         <div style={{ textAlign: 'left', marginBottom: '15mm', fontWeight: 'bold', fontSize: '11pt' }}>
-                            SPA PERSONNEL EGNA DU <span style={{ textDecoration: 'underline', marginLeft: '10px' }}>{printDate}</span> {/* LABEL RÉTABLI */}
+                            SPA PERSONNEL EGNA DU <span style={{ textDecoration: 'underline', marginLeft: '10px' }}>{printDate}</span>
+                            {(selectedService || selectedEscadron) && (
+                                <div style={{ fontSize: '9pt', marginTop: '5mm', fontWeight: 'normal' }}>
+                                    Filtres appliqués:
+                                    {selectedService && ` Service: ${selectedService}`}
+                                    {selectedEscadron && ` Escadron: ${availableEscadrons.find(e => e.id.toString() === selectedEscadron)?.nom || selectedEscadron}`}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Tableau Récapitulatif - Structure ajustée pour les cellules fusionnées */}
+                        {/* Tableau Récapitulatif */}
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10mm', border: '1px solid #000' }}>
                             <thead>
                                 <tr>
-                                    {/* Cellule EFFECTIF fusionnée sur 2 lignes */}
                                     <th rowSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '20%', fontWeight: 'bold' }}>EFFECTIF</th>
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>R</th>
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>A</th>
@@ -706,9 +939,7 @@ function HomePage() {
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>I</th>
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>S</th>
                                 </tr>
-                                {/* Deuxième ligne pour les valeurs statistiques des Cadres */}
                                 <tr>
-                                    {/* Les cellules sont vides car la cellule EFFECTIF s'étend sur cette ligne */}
                                     <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{cadreStats.total ?? 0}</td>
                                     <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{cadreStats.absent ?? 0}</td>
                                     <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{cadreStats.present ?? 0}</td>
@@ -718,7 +949,7 @@ function HomePage() {
                             </thead>
                         </table>
 
-                        {/* Tableaux Détaillés pour les Motifs (Absents et Indisponibles) */}
+                        {/* Tableaux Détaillés pour les Motifs */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '15mm', marginTop: '10mm' }}>
                             {/* Tableau pour les Absents */}
                             <div style={{ flex: 1, minWidth: '45%' }}>
@@ -731,14 +962,12 @@ function HomePage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {/* Rendre les lignes basées sur les décomptes de motifs calculés */}
                                         {Object.entries(cadreAbsentMotifCounts).map(([motif, count]) => (
                                             <tr key={motif}>
                                                 <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'left' }}>{motif}</td>
                                                 <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{count}</td>
                                             </tr>
                                         ))}
-                                         {/* Message si aucun motif n'est trouvé */}
                                          {Object.keys(cadreAbsentMotifCounts).length === 0 && (
                                              <tr>
                                                  <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun absent avec motif spécifié.</td>
@@ -759,34 +988,26 @@ function HomePage() {
                                          </tr>
                                      </thead>
                                      <tbody>
-                                         {/* Rendre les lignes basées sur les décomptes de motifs calculés */}
                                          {Object.entries(cadreIndisponibleMotifCounts).map(([motif, count]) => (
                                              <tr key={motif}>
                                                  <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'left' }}>{motif}</td>
                                                  <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{count}</td>
                                              </tr>
                                          ))}
-                                          {/* Message si aucun motif n'est trouvé */}
                                           {Object.keys(cadreIndisponibleMotifCounts).length === 0 && (
                                               <tr>
                                                   <td colSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>Aucun indisponible avec motif spécifié.</td>
                                               </tr>
                                           )}
                                      </tbody>
-                                 </table>
-                             </div>
-                         </div>
+                                </table>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
 
-                         {/* Le Grade de Semaine */}
-                         <div style={{ marginTop: '20mm', textAlign: 'right', fontWeight: 'bold' }}>
-                             LE GRADE DE SEMAINE
-                         </div>
-                     </>
-                 )}
-             </div>
-
-           </div>
-       );
-   }
-
-   export default HomePage;
+export default HomePage;

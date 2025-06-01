@@ -37,19 +37,10 @@ router.get('/', authenticateJWT, async (req, res) => {
         // D'après votre code POST, ce champ est nommé 'statut'
         whereClause.statut = statut; // <-- Utilisez le nom exact du champ dans votre modèle Eleve
     }
-    // --- FIN DE L'AJOUT ---
-
-    // TODO: Implémenter la logique de permission pour les utilisateurs 'Standard'.
-    // Un utilisateur Standard ne devrait voir que les élèves de son escadron/peloton s'il est responsable.
-    // Cette logique doit être combinée avec les filtres de requête (escadron_id, peloton, statut).
+    
     if (req.user.role === 'Standard') {
         console.log(`TODO: Implémenter le filtrage des élèves basé sur l'utilisateur ${req.user.username} (${req.user.role}).`);
-        // Exemple (à adapter selon votre logique de responsabilité):
-        // Si l'utilisateur Standard est lié à un cadre responsable d'un escadron/peloton
-        // whereClause.escadron_id = req.user.cadre.escadron_id;
-        // whereClause.peloton = req.user.cadre.peloton;
-        // Si l'utilisateur Standard n'a pas de responsabilité, renvoyer une liste vide ou 403.
-        // return res.status(403).json({ message: "Accès refusé." }); // Exemple de refus
+        
     }
 
 

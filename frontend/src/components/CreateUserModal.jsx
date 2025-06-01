@@ -3,47 +3,30 @@ import { Modal, Button, Form, Spinner, Alert } from 'react-bootstrap';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
-// Assurez-vous que cette URL est correcte pour votre backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-/**
- * Modal pour la création de nouveaux utilisateurs (Admin, Standard ou Consultant).
- * Gère un formulaire multi-étapes pour collecter les informations nécessaires,
- * y compris la recherche et la liaison d'un cadre existant par matricule pour tous les rôles.
- * Accessible uniquement aux utilisateurs autorisés (géré par le composant parent ou les routes backend).
- *
- * @param {object} props - Les propriétés du composant.
- * @param {boolean} props.show - Contrôle l'affichage du modal.
- * @param {function} props.handleClose - Fonction appelée pour fermer le modal.
- * @param {function} props.onUserCreated - Fonction appelée après la création réussie d'un utilisateur.
- */
 function CreateUserModal({ show, handleClose, onUserCreated }) {
-  // State pour gérer l'étape actuelle du formulaire. Commence à l'étape 1.
+  // States existants
   const [currentStep, setCurrentStep] = useState(1);
-
-  // State pour stocker les données du formulaire
-  const [role, setRole] = useState(''); // Rôle de l'utilisateur ('Admin', 'Standard' ou 'Consultant')
-
-  // Champs spécifiques pour le lien avec un cadre (pour tous les rôles désormais)
-  const [matriculeInput, setMatriculeInput] = useState(''); // Input pour le matricule
-  const [selectedCadreDetails, setSelectedCadreDetails] = useState(null); // Détails du cadre trouvé après recherche
-  const [cadreIdToLink, setCadreIdToLink] = useState(''); // L'ID du cadre à envoyer au backend
-
-  // Champs communs à tous les rôles
+  const [role, setRole] = useState('');
+  const [matriculeInput, setMatriculeInput] = useState('');
+  const [selectedCadreDetails, setSelectedCadreDetails] = useState(null);
+  const [cadreIdToLink, setCadreIdToLink] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSearchingCadre, setIsSearchingCadre] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [isSubmitSuccess, setIsSubmitSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State pour gérer l'état de la recherche de cadre
-  const [isSearchingCadre, setIsSearchingCadre] = useState(false); // Indique si une recherche est en cours
-  const [searchError, setSearchError] = useState(null); // Stocke l'erreur de recherche si elle survient
+  // Nouveaux states pour les escadrons
+  const [needsEscadronSpec, setNeedsEscadronSpec] = useState(false);
+  const [escadronSpecification, setEscadronSpecification] = useState('');
+  const [availableSpecifications] = useState(['1er escadron', '2ème escadron', '3ème escadron', '4ème escadron','5ème escadron','4ème escadron','5ème escadron','6ème escadron','7ème escadron','8ème escadron','10ème escadron']);
 
-  // State pour gérer l'état de la soumission finale du formulaire
-  const [submitMessage, setSubmitMessage] = useState(''); // Message affiché après soumission (succès ou erreur)
-  const [isSubmitSuccess, setIsSubmitSuccess] = useState(false); // Indique si la soumission a réussi
-  const [isSubmitting, setIsSubmitting] = useState(false); // Indique si la soumission est en cours
-
-  // Effet pour réinitialiser l'état du modal lorsque celui-ci est fermé
+  // Réinitialisation lors de la fermeture du modal
   useEffect(() => {
     if (!show) {
       setCurrentStep(1);
@@ -59,36 +42,33 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
       setSubmitMessage('');
       setIsSubmitSuccess(false);
       setIsSubmitting(false);
+      setNeedsEscadronSpec(false);
+      setEscadronSpecification('');
     }
-  }, [show]); // Dépendance au prop 'show'
+  }, [show]);
 
-  // Gère le passage à l'étape suivante du formulaire
-  // Cette fonction est asynchrone car l'étape 2 implique un appel API pour la recherche de cadre.
+  // Gestion de la navigation entre les étapes
   const handleNext = async () => {
-    // Réinitialiser les messages de soumission et les erreurs de recherche à chaque changement d'étape
     setSubmitMessage('');
     setSearchError(null);
 
-    // Logique de validation et de navigation basée sur l'étape actuelle
     if (currentStep === 1) { // Étape 1 : Sélection du rôle
       if (!role) {
         Swal.fire('Attention', 'Veuillez sélectionner un rôle.', 'warning');
         return;
       }
-      // Tous les rôles passent maintenant par la saisie du matricule
-      setCurrentStep(currentStep + 1); // Passer à l'étape 2 (Saisie Matricule)
+      setCurrentStep(currentStep + 1);
 
-    } else if (currentStep === 2) { // Étape 2 : Saisie Matricule (pour tous les rôles)
+    } else if (currentStep === 2) { // Étape 2 : Saisie Matricule
       if (!matriculeInput.trim()) {
         Swal.fire('Attention', 'Veuillez entrer le matricule du cadre.', 'warning');
         return;
       }
 
-      // Lancer la recherche du cadre par matricule avant de passer à l'étape 3
-      setIsSearchingCadre(true); // Activer l'indicateur de chargement
-      setSearchError(null); // Réinitialiser l'erreur de recherche précédente
-      setSelectedCadreDetails(null); // Réinitialiser les détails du cadre précédent
-      setCadreIdToLink(''); // Réinitialiser l'ID du cadre précédent
+      setIsSearchingCadre(true);
+      setSearchError(null);
+      setSelectedCadreDetails(null);
+      setCadreIdToLink('');
 
       try {
         const token = localStorage.getItem('token');
@@ -99,13 +79,21 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         }
         const headers = { Authorization: `Bearer ${token}` };
 
-        // Appel API pour rechercher le cadre par matricule
-        const response = await axios.get(`${API_BASE_URL}/cadres/matricule/${encodeURIComponent(matriculeInput.trim())}`, { headers });
+        const response = await axios.get(`${API_BASE_URL}api/cadres/matricule/${encodeURIComponent(matriculeInput.trim())}`, { headers });
 
         if (response.data && response.data.id) {
-          setSelectedCadreDetails(response.data); // Stocker les détails complets
-          setCadreIdToLink(response.data.id); // Stocker l'ID pour la soumission finale
-          setCurrentStep(currentStep + 1); // Passer à l'étape 3 (Confirmation Cadre)
+          setSelectedCadreDetails(response.data);
+          setCadreIdToLink(response.data.id);
+
+          // Vérifier si c'est un escadron
+          if (response.data.entite === 'Escadron') {
+            setNeedsEscadronSpec(true);
+            setCurrentStep(currentStep + 1);
+          } else {
+            setNeedsEscadronSpec(false);
+            setEscadronSpecification('');
+            setCurrentStep(currentStep + 1);
+          }
         } else {
           setSearchError(`Aucun cadre trouvé avec le matricule : ${matriculeInput.trim()}`);
         }
@@ -126,74 +114,80 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         } else if (error.request) {
           errorMessage = "Erreur réseau : Impossible de joindre le serveur.";
         }
-        setSearchError(errorMessage); // Afficher l'erreur de recherche
+        setSearchError(errorMessage);
 
       } finally {
-        setIsSearchingCadre(false); // Désactiver l'indicateur de chargement
+        setIsSearchingCadre(false);
       }
-      return; // Ne pas passer a l'étape suivante ici; la recherche réussie le fera.
+      return;
 
-    } else if (currentStep === 3) { // Étape 3 : Confirmation Cadre (pour tous les rôles)
-      // Validation : S'assurer qu'un cadre a bien été trouvé et sélectionné
+    } else if (currentStep === 3) { // Étape 3 : Confirmation Cadre + Spécification Escadron
       if (!selectedCadreDetails || !cadreIdToLink) {
         Swal.fire('Attention', "Aucun cadre sélectionné ou validé. Veuillez revenir à l'étape précédente.", 'warning');
         return;
       }
-      setCurrentStep(currentStep + 1); // Passer à l'étape 4 (Nom d'utilisateur)
 
-    } else if (currentStep === 4) { // Étape 4 : Nom d'utilisateur (pour tous les rôles)
+      // Validation spécification escadron
+      if (needsEscadronSpec) {
+        if (!escadronSpecification) {
+          Swal.fire('Attention', 'Veuillez sélectionner une spécification d\'escadron.', 'warning');
+          return;
+        }
+      }
+
+      setCurrentStep(currentStep + 1);
+
+    } else if (currentStep === 4) { // Étape 4 : Nom d'utilisateur
       if (!username.trim()) {
         Swal.fire('Attention', "Veuillez entrer un nom d'utilisateur.", 'warning');
         return;
       }
-      // Validation basique du nom d'utilisateur (longueur min)
       if (username.length < 3) {
         Swal.fire('Attention', "Le nom d'utilisateur doit contenir au moins 3 caractères.", 'warning');
         return;
       }
-      setCurrentStep(currentStep + 1); // Passer à l'étape 5 (Mot de passe)
+      setCurrentStep(currentStep + 1);
 
-    } else if (currentStep === 5) { // Étape 5 : Mot de passe et confirmation (pour tous les rôles)
+    } else if (currentStep === 5) { // Étape 5 : Mot de passe
       if (!password || !confirmPassword) {
         Swal.fire('Attention', 'Veuillez entrer et confirmer le mot de passe.', 'warning');
         return;
       }
       if (password !== confirmPassword) {
         Swal.fire('Attention', 'Les mots de passe ne correspondent pas.', 'warning');
-        setPassword(''); // Effacer les champs pour resaisie
+        setPassword('');
         setConfirmPassword('');
         return;
       }
-      // Validation basique du mot de passe (longueur min)
       if (password.length < 6) {
         Swal.fire('Attention', "Le mot de passe doit contenir au moins 6 caractères.", 'warning');
         return;
       }
-      setCurrentStep(currentStep + 1); // Passer à l'étape 6 (finale : Confirmation et Soumission)
+      setCurrentStep(currentStep + 1);
     }
-    // Aucune validation n'est nécessaire pour l'étape finale (Étape 6) avant la soumission
   };
 
-  // Gère le retour à l'étape précédente
+  // Gestion du retour
   const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-      // Si on revient à l'étape 2 (Saisie Matricule), réinitialiser les infos du cadre trouvé
       if (currentStep - 1 === 2) {
         setSelectedCadreDetails(null);
         setCadreIdToLink('');
-        setSearchError(null); // Effacer l'erreur de recherche
-        setIsSearchingCadre(false); // Arrêter l'indicateur de chargement
+        setSearchError(null);
+        setIsSearchingCadre(false);
+        setNeedsEscadronSpec(false);
+        setEscadronSpecification('');
       }
-      setSubmitMessage(''); // Effacer le message de soumission en cas de retour
+      setSubmitMessage('');
     }
   };
 
-  // Gère la soumission finale du formulaire (appelée à la dernière étape)
+  // Soumission finale
   const handleSubmit = async () => {
-    setSubmitMessage(''); // Réinitialiser les messages de soumission
+    setSubmitMessage('');
     setIsSubmitSuccess(false);
-    setIsSubmitting(true); // Activer l'état de soumission
+    setIsSubmitting(true);
 
     try {
       const token = localStorage.getItem('token');
@@ -207,47 +201,38 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
       // Préparer les données à envoyer au backend
       const newUser = {
         username: username,
-        password: password, // Le backend doit hacher ce mot de passe
+        password: password,
         role: role,
-        // Inclure cadre_id et les détails du cadre pour tous les rôles
-        cadre_id: cadreIdToLink,
+        matricule: selectedCadreDetails.matricule,
       };
 
-      // Inclure les détails du cadre si disponibles (pour tous les rôles)
-      if (selectedCadreDetails) {
-        newUser.nom = selectedCadreDetails.nom;
-        newUser.prenom = selectedCadreDetails.prenom;
-        newUser.grade = selectedCadreDetails.grade; // Si le modèle User a un champ grade
-        newUser.service = selectedCadreDetails.service; // Si le modèle User a un champ service
-        newUser.fonction = selectedCadreDetails.fonction; // Si le modèle User a un champ fonction
-        newUser.matricule = selectedCadreDetails.matricule; // Inclure le matricule pour le user model
+      // Ajouter la spécification escadron si nécessaire
+      if (needsEscadronSpec && escadronSpecification) {
+        newUser.escadron_specification = escadronSpecification;
       }
 
       console.log('Données envoyées pour création utilisateur:', newUser);
 
       // Appel API pour créer l'utilisateur
-      const response = await axios.post(`${API_BASE_URL}/users`, newUser, {
+      const response = await axios.post(`${API_BASE_URL}api/users`, newUser, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Gérer la réponse succès
       setSubmitMessage(response.data.message || 'Utilisateur créé avec succès !');
       setIsSubmitSuccess(true);
-      onUserCreated(); // Appeler le callback pour rafraîchir la liste dans le composant parent
+      onUserCreated();
 
     } catch (error) {
       console.error("Erreur lors de la création de l'utilisateur :", error);
       let errorMessage = "Erreur lors de la création de l'utilisateur.";
       if (error.response) {
-        // Gérer les erreurs spécifiques du backend
         if (error.response.status === 400 && error.response.data && error.response.data.message) {
           errorMessage = "Erreur API : " + error.response.data.message;
         } else if (error.response.status === 401 || error.response.status === 403) {
           errorMessage = "Vous n'êtes pas autorisé à créer des utilisateurs.";
-        } else if (error.response.status === 409) { // Conflit (ex: nom d'utilisateur déjà utilisé)
-          errorMessage = "Erreur API : " + (error.response.data.message || "Conflit de données (ex: nom d'utilisateur ou cadre déjà lié).");
-        }
-        else if (error.response.data && error.response.data.message) {
+        } else if (error.response.status === 409) {
+          errorMessage = "Erreur API : " + (error.response.data.message || "Conflit de données.");
+        } else if (error.response.data && error.response.data.message) {
           errorMessage = "Erreur API : " + error.response.data.message;
         } else {
           errorMessage = `Erreur serveur : ${error.response.status} ${error.response.statusText}`;
@@ -257,283 +242,256 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
       } else {
         errorMessage = "Erreur inattendue lors de la requête.";
       }
-      setSubmitMessage(errorMessage); // Afficher le message d'erreur
-      setIsSubmitSuccess(false); // S'assurer que le succès est faux
+      setSubmitMessage(errorMessage);
+      setIsSubmitSuccess(false);
+
     } finally {
-      setIsSubmitting(false); // Désactiver l'état de soumission
+      setIsSubmitting(false);
     }
   };
 
-  // Déterminer le nombre total d'étapes (fixe à 6 pour tous les rôles maintenant)
-  const totalSteps = 6;
-  const displayedStep = currentStep; // Le numéro d'étape affiché est le même que currentStep
-
-  // Rendu conditionnel du contenu du modal en fonction de l'étape actuelle
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1: // Étape 1 : Sélection du rôle
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Sélection du rôle</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group>
-                <Form.Label>Quel rôle aura ce compte ?</Form.Label>
-                <div>
-                  <Form.Check
-                    type="radio"
-                    label="Administrateur"
-                    name="roleOptions"
-                    id="roleAdmin"
-                    value="Admin"
-                    checked={role === 'Admin'}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="mb-2"
-                  />
-                  <Form.Check
-                    type="radio"
-                    label="Standard"
-                    name="roleOptions"
-                    id="roleStandard"
-                    value="Standard"
-                    checked={role === 'Standard'}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="mb-2"
-                  />
-                  <Form.Check
-                    type="radio"
-                    label="Consultant"
-                    name="roleOptions"
-                    id="roleConsultant"
-                    value="Consultant"
-                    checked={role === 'Consultant'}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="mb-2"
-                  />
-                </div>
-              </Form.Group>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isSearchingCadre}>Annuler</Button>
-              <Button variant="primary" onClick={handleNext} disabled={!role || isSubmitting || isSearchingCadre}>Suivant</Button>
-            </Modal.Footer>
-          </>
-        );
-      case 2: // Étape 2 : Saisie Matricule (pour TOUS les rôles)
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Saisie du Matricule du Cadre</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group className="mb-3">
-                <Form.Label>Entrez le matricule du cadre à lier</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={matriculeInput}
-                  onChange={(e) => setMatriculeInput(e.target.value)}
-                  required
-                  disabled={isSubmitting || isSearchingCadre}
-                />
-              </Form.Group>
-
-              {isSearchingCadre && <Spinner animation="border" size="sm" className="me-2" />}
-              {searchError && <Alert variant="danger">{searchError}</Alert>}
-
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>Retour</Button>
-              <Button
-                variant="primary"
-                onClick={handleNext} // handleNext contient maintenant la logique de recherche pour cette étape
-                disabled={!matriculeInput.trim() || isSubmitting || isSearchingCadre}
-              >
-                {isSearchingCadre ? 'Recherche...' : 'Rechercher et Suivant'}
-              </Button>
-            </Modal.Footer>
-          </>
-        );
-      case 3: // Étape 3 : Confirmation Cadre (pour TOUS les rôles)
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Confirmer le Cadre</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              {!selectedCadreDetails ? (
-                <Alert variant="warning">Aucun cadre trouvé pour le matricule saisi. Veuillez revenir à l'étape précédente.</Alert>
-              ) : (
-                <>
-                  <p>Veuillez confirmer les informations du cadre trouvé pour le compte de rôle **{role}** :</p>
-                  <ul>
-                    <li>**Matricule :** {selectedCadreDetails.matricule}</li>
-                    <li>**Nom :** {selectedCadreDetails.nom}</li>
-                    <li>**Prénom :** {selectedCadreDetails.prenom}</li>
-                    <li>**Service :** {selectedCadreDetails.service || 'Non spécifié'}</li>
-                    <li>**Fonction :** {selectedCadreDetails.fonction || 'Non spécifié'}</li>
-                  </ul>
-                  <Alert variant="info">Ce compte utilisateur sera lié à ce cadre (ID: {cadreIdToLink}).</Alert>
-                </>
-              )}
-
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>Retour</Button>
-              <Button
-                variant="primary"
-                onClick={handleNext}
-                disabled={!selectedCadreDetails || isSubmitting || isSearchingCadre} // Désactivé si pas de cadre trouvé/confirmé
-              >
-                Suivant
-              </Button>
-            </Modal.Footer>
-          </>
-        );
-      case 4: // Étape 4 : Nom d'utilisateur (pour TOUS les rôles)
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Nom d'utilisateur</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group className="mb-3">
-                <Form.Label>Nom d'utilisateur</Form.Label>
-                <Form.Control
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  disabled={isSubmitting || isSearchingCadre}
-                />
-              </Form.Group>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>Retour</Button>
-              <Button variant="primary" onClick={handleNext} disabled={!username.trim() || isSubmitting || isSearchingCadre}>Suivant</Button>
-            </Modal.Footer>
-          </>
-        );
-      case 5: // Étape 5 : Mot de passe et confirmation (pour TOUS les rôles)
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Mot de passe</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group className="mb-3">
-                <Form.Label>Mot de passe</Form.Label>
-                <Form.Control
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isSubmitting || isSearchingCadre}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Confirmer le mot de passe</Form.Label>
-                <Form.Control
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={isSubmitting || isSearchingCadre}
-                />
-              </Form.Group>
-              {password && confirmPassword && password !== confirmPassword && (
-                <Alert variant="warning">Les mots de passe ne correspondent pas.</Alert>
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>Retour</Button>
-              <Button variant="primary" onClick={handleNext} disabled={!password || !confirmPassword || password !== confirmPassword || isSubmitting || isSearchingCadre}>Suivant</Button>
-            </Modal.Footer>
-          </>
-        );
-      case 6: // Étape 6 : Confirmation et Soumission (pour TOUS les rôles)
-        return (
-          <>
-            <Modal.Header closeButton>
-              <Modal.Title>Étape {displayedStep}/{totalSteps} : Confirmation et Création</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              {!submitMessage && !isSubmitting && ( // Afficher le récapitulatif si aucune soumission n'est en cours et pas de message affiché
-                <>
-                  <p>Veuillez vérifier les informations avant de créer le compte :</p>
-                  <ul>
-                    <li>**Rôle :** {role}</li>
-                    {selectedCadreDetails && (
-                      <>
-                        <li>**Cadre Associé :** {selectedCadreDetails.nom || 'Inconnu'} {selectedCadreDetails.prenom || ''} (Matricule: {selectedCadreDetails.matricule})</li>
-                        <li>**Service du Cadre :** {selectedCadreDetails.service || 'Non spécifié'}</li>
-                        <li>**Fonction du Cadre :** {selectedCadreDetails.fonction || 'Non spécifié'}</li>
-                      </>
-                    )}
-                    {!selectedCadreDetails && (
-                      <Alert variant="warning">Attention : Aucun cadre n'a été correctement associé à ce compte. Le compte sera créé sans lien cadre.</Alert>
-                    )}
-                    <li>**Nom d'utilisateur :** {username}</li>
-                    <li>**Mot de passe :** *********</li> {/* Ne jamais afficher le mot de passe ici */}
-                  </ul>
-                </>
-              )}
-
-              {/* Afficher le message de soumission (succès ou erreur) */}
-              {submitMessage && (
-                <Alert variant={isSubmitSuccess ? 'success' : 'danger'}>{submitMessage}</Alert>
-              )}
-              {/* Afficher le spinner pendant la soumission */}
-              {isSubmitting && (
-                <div className="text-center">
-                  <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Création en cours...</span>
-                  </Spinner>
-                  <p>Création du compte en cours...</p>
-                </div>
-              )}
-            </Modal.Body>
-            <Modal.Footer>
-              {/* Le bouton "Retour" est désactivé pendant la soumission et après succès */}
-              {!isSubmitSuccess && !isSubmitting && (
-                <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>Retour</Button>
-              )}
-
-              {/* Bouton de création final */}
-              {!isSubmitSuccess && !isSubmitting && (
-                <Button
-                  variant="success"
-                  onClick={handleSubmit}
-                  // Désactivé pendant la soumission, recherche, ou si le cadre n'est pas confirmé
-                  disabled={isSubmitting || isSearchingCadre || !selectedCadreDetails}
-                >
-                  Créer le compte
-                </Button>
-              )}
-
-              {/* Ajouter un bouton "Fermer" après un succès de soumission */}
-              {isSubmitSuccess && !isSubmitting && (
-                <Button variant="secondary" onClick={handleClose}>Fermer</Button>
-              )}
-              {/* Ajouter un bouton "Fermer" en cas d'erreur de soumission pour permettre de réessayer */}
-              {!isSubmitSuccess && submitMessage && !isSubmitting && (
-                <Button variant="secondary" onClick={handleClose}>Fermer</Button>
-              )}
-
-            </Modal.Footer>
-          </>
-        );
-      default:
-        return null; // Ne devrait normalement pas arriver
-    }
-  };
-
-  // Le composant Modal enveloppe les étapes
   return (
-    // backdrop="static" et keyboard={false} empêchent la fermeture en cliquant à l'extérieur ou avec Echap pendant le processus
-    <Modal show={show} onHide={handleClose} backdrop="static" keyboard={false}>
-      {/* Le contenu (Header, Body, Footer) est géré par la fonction renderStep */}
-      {renderStep()}
+    <Modal show={show} onHide={handleClose} size="lg" backdrop="static">
+      <Modal.Header closeButton>
+        <Modal.Title>Créer un Nouvel Utilisateur - Étape {currentStep}/6</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {/* Étape 1: Sélection du rôle */}
+        {currentStep === 1 && (
+          <div>
+            <h5>Étape 1: Sélection du Rôle</h5>
+            <Form.Group className="mb-3">
+              <Form.Label>Rôle de l'utilisateur *</Form.Label>
+              <Form.Select value={role} onChange={(e) => setRole(e.target.value)} required>
+                <option value="">-- Sélectionnez un rôle --</option>
+                <option value="Admin">Administrateur</option>
+                <option value="Standard">Standard</option>
+                <option value="Consultant">Consultant</option>
+              </Form.Select>
+              <Form.Text className="text-muted">
+                Choisissez le niveau d'accès pour ce nouvel utilisateur.
+              </Form.Text>
+            </Form.Group>
+          </div>
+        )}
+
+        {/* Étape 2: Saisie du matricule */}
+        {currentStep === 2 && (
+          <div>
+            <h5>Étape 2: Matricule du Cadre</h5>
+            <Form.Group className="mb-3">
+              <Form.Label>Matricule du cadre à lier *</Form.Label>
+              <Form.Control
+                type="text"
+                value={matriculeInput}
+                onChange={(e) => setMatriculeInput(e.target.value)}
+                placeholder="Entrez le matricule du cadre"
+                required
+              />
+              <Form.Text className="text-muted">
+                L'utilisateur sera automatiquement lié à ce cadre.
+              </Form.Text>
+            </Form.Group>
+            {isSearchingCadre && (
+              <div className="d-flex align-items-center">
+                <Spinner animation="border" size="sm" className="me-2" />
+                <span>Recherche du cadre en cours...</span>
+              </div>
+            )}
+            {searchError && (
+              <Alert variant="danger" className="mt-3">
+                {searchError}
+              </Alert>
+            )}
+          </div>
+        )}
+
+        {/* Étape 3: Confirmation du cadre + Spécification Escadron */}
+        {currentStep === 3 && (
+          <div>
+            <h5>Étape 3: Confirmation du Cadre</h5>
+            {selectedCadreDetails && (
+              <div>
+                <Alert variant="success">
+                  <strong>Cadre trouvé :</strong><br />
+                  <strong>Nom :</strong> {selectedCadreDetails.nom} {selectedCadreDetails.prenom}<br />
+                  <strong>Grade :</strong> {selectedCadreDetails.grade}<br />
+                  <strong>Matricule :</strong> {selectedCadreDetails.matricule}<br />
+                  <strong>Entité :</strong> {selectedCadreDetails.entite}<br />
+                  {selectedCadreDetails.service && <><strong>Service :</strong> {selectedCadreDetails.service}<br /></>}
+                  {selectedCadreDetails.EscadronResponsable && (
+                    <><strong>Escadron :</strong> {selectedCadreDetails.EscadronResponsable.nom}<br /></>
+                  )}
+                </Alert>
+
+                {/* Section Spécification Escadron */}
+                {needsEscadronSpec && (
+                  <div className="mt-3">
+                    <Alert variant="info">
+                      <strong>Spécification Escadron Requise</strong><br />
+                      Ce cadre appartient à un escadron. Veuillez spécifier quelle partie de l'escadron cet utilisateur supervisera :
+                    </Alert>
+                    <Form.Group>
+                      <Form.Label>Spécification d'Escadron *</Form.Label>
+                      <Form.Select
+                        value={escadronSpecification}
+                        onChange={(e) => setEscadronSpecification(e.target.value)}
+                        required
+                      >
+                        <option value="">-- Sélectionnez une spécification --</option>
+                        {availableSpecifications.map((spec, index) => (
+                          <option key={index} value={spec}>{spec}</option>
+                        ))}
+                      </Form.Select>
+                      <Form.Text className="text-muted">
+                        Précisez quelle partie de l'escadron supervise cet utilisateur (ex: 1er escadron, 2ème escadron...).
+                      </Form.Text>
+                    </Form.Group>
+                  </div>
+                )}
+
+                <p className="mt-3 text-muted">
+                  Confirmer la liaison de cet utilisateur avec ce cadre ?
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Étape 4: Nom d'utilisateur */}
+        {currentStep === 4 && (
+          <div>
+            <h5>Étape 4: Nom d'Utilisateur</h5>
+            <Form.Group className="mb-3">
+              <Form.Label>Nom d'utilisateur *</Form.Label>
+              <Form.Control
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Entrez le nom d'utilisateur"
+                required
+              />
+              <Form.Text className="text-muted">
+                Au moins 3 caractères. Ce nom sera utilisé pour la connexion.
+              </Form.Text>
+            </Form.Group>
+            {selectedCadreDetails && (
+              <Alert variant="info">
+                <strong>Suggestion :</strong> Vous pourriez utiliser quelque chose comme "{selectedCadreDetails.prenom?.toLowerCase()}.{selectedCadreDetails.nom?.toLowerCase()}" ou "{selectedCadreDetails.matricule}"
+              </Alert>
+            )}
+          </div>
+        )}
+
+        {/* Étape 5: Mot de passe */}
+        {currentStep === 5 && (
+          <div>
+            <h5>Étape 5: Mot de Passe</h5>
+            <Form.Group className="mb-3">
+              <Form.Label>Mot de passe *</Form.Label>
+              <Form.Control
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Entrez le mot de passe"
+                required
+              />
+              <Form.Text className="text-muted">
+                Au moins 6 caractères.
+              </Form.Text>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Confirmer le mot de passe *</Form.Label>
+              <Form.Control
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirmez le mot de passe"
+                required
+              />
+            </Form.Group>
+          </div>
+        )}
+
+        {/* Étape 6: Récapitulatif et soumission */}
+        {currentStep === 6 && (
+          <div>
+            <h5>Étape 6: Récapitulatif</h5>
+            <Alert variant="light">
+              <strong>Récapitulatif de l'utilisateur à créer :</strong><br />
+              <strong>Rôle :</strong> {role}<br />
+              <strong>Nom d'utilisateur :</strong> {username}<br />
+              <strong>Cadre associé :</strong> {selectedCadreDetails?.grade} {selectedCadreDetails?.nom} {selectedCadreDetails?.prenom}<br />
+              <strong>Matricule :</strong> {selectedCadreDetails?.matricule}<br />
+              <strong>Entité :</strong> {selectedCadreDetails?.entite}<br />
+              {selectedCadreDetails?.service && <><strong>Service :</strong> {selectedCadreDetails.service}<br /></>}
+              {selectedCadreDetails?.EscadronResponsable && (
+                <><strong>Escadron :</strong> {selectedCadreDetails.EscadronResponsable.nom}<br /></>
+              )}
+              {needsEscadronSpec && escadronSpecification && (
+                <><strong>Spécification :</strong> {escadronSpecification}<br /></>
+              )}
+            </Alert>
+
+            {submitMessage && (
+              <Alert variant={isSubmitSuccess ? "success" : "danger"} className="mt-3">
+                {submitMessage}
+              </Alert>
+            )}
+
+            {!isSubmitSuccess && (
+              <p className="text-muted">
+                Vérifiez les informations ci-dessus et cliquez sur "Créer l'utilisateur" pour finaliser.
+              </p>
+            )}
+          </div>
+        )}
+      </Modal.Body>
+
+      <Modal.Footer>
+        <div className="d-flex justify-content-between w-100">
+          <div>
+            {currentStep > 1 && !isSubmitSuccess && (
+              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting}>
+                Précédent
+              </Button>
+            )}
+          </div>
+          <div>
+            {currentStep < 6 ? (
+              <Button variant="primary" onClick={handleNext} disabled={isSearchingCadre}>
+                {isSearchingCadre ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Recherche...
+                  </>
+                ) : (
+                  'Suivant'
+                )}
+              </Button>
+            ) : (
+              <div>
+                {!isSubmitSuccess ? (
+                  <Button variant="success" onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        Création...
+                      </>
+                    ) : (
+                      'Créer l\'utilisateur'
+                    )}
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={handleClose}>
+                    Fermer
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal.Footer>
     </Modal>
   );
 }

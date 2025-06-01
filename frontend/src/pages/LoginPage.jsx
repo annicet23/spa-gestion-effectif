@@ -1,7 +1,10 @@
+// src/pages/LoginPage.jsx
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { Navbar, Nav, Container, Button } from 'react-bootstrap';
+import './LoginPage.css';
 
 function LoginPage() {
     const { login } = useAuth();
@@ -12,10 +15,16 @@ function LoginPage() {
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
     const handleUsernameChange = (event) => setUsername(event.target.value);
     const handlePasswordChange = (event) => setPassword(event.target.value);
     const handleRememberMeChange = (event) => setRememberMe(event.target.checked);
+    const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
+    // ... (gardez toutes vos fonctions existantes: handleMatriculePrompt, handleProfileUpdatePrompt, etc.)
 
     const handleMatriculePrompt = async (initialMessage, currentPassword) => {
         setLoading(true);
@@ -27,6 +36,11 @@ function LoginPage() {
             confirmButtonText: 'Valider',
             cancelButtonText: 'Annuler',
             allowOutsideClick: false,
+            customClass: {
+                popup: 'animated-popup',
+                confirmButton: 'swal-confirm-btn',
+                cancelButton: 'swal-cancel-btn'
+            },
             inputValidator: (value) => {
                 if (!value || value.trim() === '') {
                     return 'Le matricule est requis !';
@@ -35,7 +49,12 @@ function LoginPage() {
         });
 
         if (dismiss) {
-            Swal.fire('Annulé', 'Connexion annulée. Veuillez réessayer.', 'info');
+            Swal.fire({
+                title: 'Annulé',
+                text: 'Connexion annulée. Veuillez réessayer.',
+                icon: 'info',
+                customClass: { popup: 'animated-popup' }
+            });
             setLoading(false);
             localStorage.removeItem('tempToken');
             return;
@@ -44,15 +63,19 @@ function LoginPage() {
         if (matricule) {
             const tempToken = localStorage.getItem('tempToken');
             if (!tempToken) {
-                Swal.fire('Erreur', 'Session expirée. Veuillez vous reconnecter.', 'error');
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Session expirée. Veuillez vous reconnecter.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
                 navigate('/login');
                 setLoading(false);
                 return;
             }
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL;
-                const response = await fetch(`${apiUrl}/api/consultant/update-profile`, {
+                const response = await fetch(`${API_BASE_URL}api/consultant/update-profile`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -61,21 +84,31 @@ function LoginPage() {
                     body: JSON.stringify({
                         matricule: matricule.trim(),
                         oldPassword: currentPassword,
-                        newPassword: currentPassword, // Lors de la seule saisie du matricule, l'ancien mot de passe est utilisé comme nouveau pour valider
-                        confirmNewPassword: currentPassword, // C'est le backend qui validera si un vrai changement est nécessaire
+                        newPassword: currentPassword,
+                        confirmNewPassword: currentPassword,
                     })
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    Swal.fire('Succès', data.message, 'success');
+                    Swal.fire({
+                        title: 'Succès',
+                        text: data.message,
+                        icon: 'success',
+                        customClass: { popup: 'animated-popup' }
+                    });
                     login(data.token, data.user);
                     localStorage.removeItem('tempToken');
                     navigate('/');
                 } else {
                     const errorMessage = data.message || 'Erreur lors de la validation du matricule.';
-                    Swal.fire('Erreur', errorMessage, 'error');
+                    Swal.fire({
+                        title: 'Erreur',
+                        text: errorMessage,
+                        icon: 'error',
+                        customClass: { popup: 'animated-popup' }
+                    });
                     setError(errorMessage);
 
                     if (data.requiresMatriculePrompt) {
@@ -87,7 +120,12 @@ function LoginPage() {
                     }
                 }
             } catch (err) {
-                Swal.fire('Erreur', 'Connexion au serveur échouée.', 'error');
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Connexion au serveur échouée.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
                 setError('Connexion au serveur échouée.');
             } finally {
                 setLoading(false);
@@ -108,6 +146,11 @@ function LoginPage() {
             confirmButtonText: 'Mettre à jour',
             cancelButtonText: 'Annuler',
             allowOutsideClick: false,
+            customClass: {
+                popup: 'animated-popup',
+                confirmButton: 'swal-confirm-btn',
+                cancelButton: 'swal-cancel-btn'
+            },
             preConfirm: () => {
                 const matricule = document.getElementById('swal-input-matricule').value;
                 const oldPassword = document.getElementById('swal-input-old-pass').value;
@@ -132,7 +175,12 @@ function LoginPage() {
         });
 
         if (dismiss) {
-            Swal.fire('Annulé', 'Mise à jour annulée.', 'info');
+            Swal.fire({
+                title: 'Annulé',
+                text: 'Mise à jour annulée.',
+                icon: 'info',
+                customClass: { popup: 'animated-popup' }
+            });
             localStorage.removeItem('tempToken');
             setLoading(false);
             return;
@@ -141,15 +189,19 @@ function LoginPage() {
         if (formValues) {
             const tempToken = localStorage.getItem('tempToken');
             if (!tempToken) {
-                Swal.fire('Erreur', 'Session expirée. Veuillez vous reconnecter.', 'error');
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Session expirée. Veuillez vous reconnecter.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
                 navigate('/login');
                 setLoading(false);
                 return;
             }
 
             try {
-                const apiUrl = import.meta.env.VITE_API_URL;
-                const response = await fetch(`${apiUrl}/api/consultant/update-profile`, {
+                const response = await fetch(`${API_BASE_URL}api/consultant/update-profile`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -161,13 +213,23 @@ function LoginPage() {
                 const data = await response.json();
 
                 if (response.ok) {
-                    Swal.fire('Succès', data.message, 'success');
+                    Swal.fire({
+                        title: 'Succès',
+                        text: data.message,
+                        icon: 'success',
+                        customClass: { popup: 'animated-popup' }
+                    });
                     login(data.token, data.user);
                     localStorage.removeItem('tempToken');
                     navigate('/');
                 } else {
                     const errorMessage = data.message || 'Erreur de mise à jour du profil.';
-                    Swal.fire('Erreur', errorMessage, 'error');
+                    Swal.fire({
+                        title: 'Erreur',
+                        text: errorMessage,
+                        icon: 'error',
+                        customClass: { popup: 'animated-popup' }
+                    });
                     setError(errorMessage);
 
                     if (data.requiresMatriculeUpdate || data.requiresPasswordUpdate || data.requiresMatriculePrompt) {
@@ -177,7 +239,12 @@ function LoginPage() {
                     }
                 }
             } catch (err) {
-                Swal.fire('Erreur', 'Connexion au serveur échouée.', 'error');
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Connexion au serveur échouée.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
                 setError('Connexion au serveur échouée.');
             } finally {
                 setLoading(false);
@@ -191,8 +258,7 @@ function LoginPage() {
         setLoading(true);
 
         try {
-            const apiUrl = import.meta.env.VITE_API_URL;
-            const response = await fetch(`${apiUrl}/api/auth/login`, {
+            const response = await fetch(`${API_BASE_URL}api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
@@ -204,9 +270,8 @@ function LoginPage() {
                 if (data.tempToken) {
                     localStorage.setItem('tempToken', data.tempToken);
 
-                    // Modifiez le message initial du prompt en fonction de la raison (si fournie par le backend)
                     let initialPromptMessage = data.message;
-                    if (data.requiresPasswordUpdate && data.message.includes('expiré')) { // Adaptez cette condition si le backend renvoie un flag spécifique comme `data.passwordExpired: true`
+                    if (data.requiresPasswordUpdate && data.message.includes('expiré')) {
                         initialPromptMessage = 'Votre mot de passe a expiré. Veuillez le changer.';
                     } else if (data.requiresMatriculePrompt) {
                         initialPromptMessage = data.message;
@@ -214,17 +279,25 @@ function LoginPage() {
                         initialPromptMessage = 'Votre profil (mot de passe et/ou matricule) doit être mis à jour.';
                     }
 
-
                     if (data.requiresMatriculePrompt) {
                         await handleMatriculePrompt(initialPromptMessage, password);
                     } else if (data.requiresPasswordUpdate) {
-                        // Passez le matricule existant (même s'il est vide) pour pré-remplir si nécessaire
                         await handleProfileUpdatePrompt(initialPromptMessage, data.user?.matricule || '', password);
                     } else {
-                        Swal.fire('Erreur', data.message || 'Erreur inconnue.', 'error');
+                        Swal.fire({
+                            title: 'Erreur',
+                            text: data.message || 'Erreur inconnue.',
+                            icon: 'error',
+                            customClass: { popup: 'animated-popup' }
+                        });
                     }
                 } else {
-                    Swal.fire('Erreur', data.message || 'Nom d\'utilisateur ou mot de passe incorrect.', 'error');
+                    Swal.fire({
+                        title: 'Erreur',
+                        text: data.message || 'Nom d\'utilisateur ou mot de passe incorrect.',
+                        icon: 'error',
+                        customClass: { popup: 'animated-popup' }
+                    });
                     setError(data.message || 'Identifiants invalides.');
                 }
             } else {
@@ -233,7 +306,12 @@ function LoginPage() {
                 navigate('/');
             }
         } catch (err) {
-            Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
+            Swal.fire({
+                title: 'Erreur',
+                text: 'Impossible de contacter le serveur.',
+                icon: 'error',
+                customClass: { popup: 'animated-popup' }
+            });
             setError('Impossible de contacter le serveur.');
         } finally {
             setLoading(false);
@@ -241,37 +319,149 @@ function LoginPage() {
     };
 
     return (
-        <div className="login-page-container d-flex justify-content-center align-items-center min-vh-100">
-            <div className="card p-4 login-card">
-                <div className="card-body">
-                    <div className="user-icon-circle bg-primary text-white mx-auto mb-4 d-flex justify-content-center align-items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" className="bi bi-person" viewBox="0 0 16 16">
-                            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/>
-                        </svg>
+        <div className="login-page-container d-flex flex-column min-vh-100">
+           <Navbar bg="dark" variant="dark" expand="lg" className="gespa-navbar">
+    <Container fluid>
+        {/* GESPA à gauche */}
+        <Navbar.Brand as={Link} to="/login" className="gespa-brand">
+            <div className="brand-container">
+                <span className="brand-title">GESPA</span>
+                <span className="brand-version">v1.0</span>
+            </div>
+        </Navbar.Brand>
+
+        {/* Toggle pour mobile */}
+        <Navbar.Toggle aria-controls="basic-navbar-nav" />
+
+        {/* Liens à droite */}
+        <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="ms-auto">
+                <Nav.Link as={Link} to="/documentation/library" className="nav-link-custom">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-book-fill me-2" viewBox="0 0 16 16">
+                        <path d="M8 1.782a1.75 1.75 0 0 0-1.045.393L6 2.6V15.5a.5.5 0 0 0 .5.5c.197 0 .37-.06.5-.165l.61-.413a1.75 1.75 0 0 1 2.784 0l.61.413c.13.105.303.165.5.165a.5.5 0 0 0 .5-.5V2.6l-.955-.425A1.75 1.75 0 0 0 8 1.782"/>
+                    </svg>
+                    Bibliothèque
+                </Nav.Link>
+                <Nav.Link as={Link} to="/documentation" className="nav-link-custom">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-file-earmark-text-fill me-2" viewBox="0 0 16 16">
+                        <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0M9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1M4.5 9a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1zM4.5 11a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1zM4.5 13a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1z"/>
+                    </svg>
+                    Documentation
+                </Nav.Link>
+            </Nav>
+        </Navbar.Collapse>
+    </Container>
+</Navbar>
+
+            <div className="d-flex justify-content-center align-items-center flex-grow-1 login-background-overlay">
+                <div className="card p-4 login-card enhanced-card">
+                    <div className="card-body">
+                        {/* ✨ ICÔNE UTILISATEUR AMÉLIORÉE */}
+                        <div className="user-icon-circle bg-primary text-white mx-auto mb-4 d-flex justify-content-center align-items-center enhanced-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" className="bi bi-person-circle" viewBox="0 0 16 16">
+                                <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/>
+                                <path fillRule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"/>
+                            </svg>
+                        </div>
+
+                        {/* ✨ TITRE DE CONNEXION */}
+                        <h4 className="text-center mb-4 login-title">
+                            <i className="bi bi-shield-lock me-2"></i>
+                            Connexion Sécurisée
+                        </h4>
+
+                        {/* ✨ ALERTE D'ERREUR AMÉLIORÉE */}
+                        {error && (
+                            <div className="alert alert-danger enhanced-alert" role="alert">
+                                <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="enhanced-form">
+                            {/* ✨ CHAMP UTILISATEUR AMÉLIORÉ */}
+                            <div className="mb-3 input-group enhanced-input-group">
+                                <span className="input-group-text enhanced-input-addon">
+                                    <i className="bi bi-person-fill"></i>
+                                </span>
+                                <input
+                                    type="text"
+                                    className="form-control enhanced-input"
+                                    placeholder="Nom d'utilisateur"
+                                    value={username}
+                                    onChange={handleUsernameChange}
+                                    required
+                                />
+                            </div>
+
+                            {/* ✨ CHAMP MOT DE PASSE AVEC TOGGLE VISIBILITÉ */}
+                            <div className="mb-3 input-group enhanced-input-group">
+                                <span className="input-group-text enhanced-input-addon">
+                                    <i className="bi bi-lock-fill"></i>
+                                </span>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    className="form-control enhanced-input"
+                                    placeholder="Mot de passe"
+                                    value={password}
+                                    onChange={handlePasswordChange}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-secondary password-toggle-btn"
+                                    onClick={togglePasswordVisibility}
+                                    tabIndex="-1"
+                                >
+                                    <i className={`bi bi-eye${showPassword ? '-slash' : ''}-fill`}></i>
+                                </button>
+                            </div>
+
+                            {/* ✨ CHECKBOX AMÉLIORÉE */}
+                            <div className="form-check mb-4 enhanced-checkbox">
+                                <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={handleRememberMeChange}
+                                    id="rememberMe"
+                                />
+                                <label className="form-check-label" htmlFor="rememberMe">
+                                    <i className="bi bi-bookmark-heart me-2"></i>
+                                    Se souvenir de moi
+                                </label>
+                            </div>
+
+                            {/* ✨ BOUTON DE CONNEXION AMÉLIORÉ */}
+                            <button
+                                type="submit"
+                                className="btn btn-primary w-100 enhanced-submit-btn"
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Connexion en cours...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="bi bi-box-arrow-in-right me-2"></i>
+                                        Se connecter
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+
                     </div>
-                    {error && <div className="alert alert-danger">{error}</div>}
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3 input-group">
-                            <span className="input-group-text">
-                                <i className="bi bi-person"></i>
-                            </span>
-                            <input type="text" className="form-control" placeholder="Nom d'utilisateur" value={username} onChange={handleUsernameChange} required />
-                        </div>
-                        <div className="mb-3 input-group">
-                            <span className="input-group-text">
-                                <i className="bi bi-lock"></i>
-                            </span>
-                            <input type="password" className="form-control" placeholder="Mot de passe" value={password} onChange={handlePasswordChange} required />
-                        </div>
-                        <div className="form-check mb-3">
-                            <input className="form-check-input" type="checkbox" checked={rememberMe} onChange={handleRememberMeChange} id="rememberMe" />
-                            <label className="form-check-label" htmlFor="rememberMe">Se souvenir de moi</label>
-                        </div>
-                        <button type="submit" className="btn btn-primary w-100" disabled={loading}>
-                            {loading ? 'Connexion en cours...' : 'Se connecter'}
-                        </button>
-                    </form>
                 </div>
+            </div>
+
+            {/* ✨ FOOTER DE LA PAGE */}
+            <div className="login-page-footer text-center py-3">
+                <small className="text-muted">
+                    © 2025 GESPA v1.0 - EGNA/DI/SIT-INFO
+                </small>
             </div>
         </div>
     );

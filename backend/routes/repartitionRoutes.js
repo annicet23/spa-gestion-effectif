@@ -13,12 +13,12 @@ const { sequelize } = require('../models'); // Importe l'instance sequelize pour
 
 // Structure pour définir l'ordre des grades (du plus haut au plus bas)
 const GRADE_ORDER = [
-    
+   
     'CNE', 'LTN',
     'GPCE', 'GPHC',
     'GP1C', 'GP2C',
     'GHC', 'G1C', 'G2C', 'GST',
-    
+   
 ];
 
 // Helper pour comparer les grades (utilisé principalement pour le tri si nécessaire)
@@ -63,9 +63,10 @@ function shuffleArray(array) {
 router.use(authenticateJWT);
 
 // ============================================================================
-// POST /api/repartition/create - Création d'une proposition de répartition
+// POST /api/repartition/create - Création d'une proposition de répartition (Admin seulement)
 // ============================================================================
-router.post('/create', async (req, res) => {
+// ** AJOUT DE isAdmin ICI **
+router.post('/create', isAdmin, async (req, res) => {
     // Validation du corps de la requête
     if (!req.body || typeof req.body !== 'object') {
         console.error("Repartition Create Error: Request body is not a valid JSON object");
@@ -113,11 +114,11 @@ router.post('/create', async (req, res) => {
     const GRADES_MONITEUR = ['GHC', 'G1C', 'G2C', 'GST']; // Grades éligibles Moniteur (confirmés)**
 
     // Vérification basique pour détecter un éventuel chevauchement non souhaité dans la définition des grades éligibles
-    const allKeyRoleGrades = [...GRADES_CMDT_ESC, ...GRADES_CHEF_SIAT, ...GRADES_CMDT_PEL, ...GRADES_ADJ_PEL]; // Peut contenir des doublons, ce n'est pas grave
-    const overlappingGrades = GRADES_MONITEUR.filter(grade => allKeyRoleGrades.includes(grade));
-    if (overlappingGrades.length > 0) {
-        console.warn(`Defined grades overlap: ${overlappingGrades.join(', ')} are listed for both key roles and moniteurs. Adjust GRADES_MONITEUR if this is not intended.`);
-    }
+    const allKeyRoleGrades = [...GRADES_CMDT_ESC, ...GRADES_CHEF_SIAT, ...GRADES_CMDT_PEL, ...GRADES_ADJ_PEL]; // Peut contenir des doublons, ce n'est pas grave
+    const overlappingGrades = GRADES_MONITEUR.filter(grade => allKeyRoleGrades.includes(grade));
+    if (overlappingGrades.length > 0) {
+        console.warn(`Defined grades overlap: ${overlappingGrades.join(', ')} are listed for both key roles and moniteurs. Adjust GRADES_MONITEUR if this is not intended.`);
+    }
 
 
     try {
@@ -309,7 +310,7 @@ router.post('/create', async (req, res) => {
 
          console.log(`Total cadres disponibles (scope='Escadron', Présent): ${totalCadresDisponiblesInitial}`);
          console.log(`Cadres utilisés pour rôles clés attribués: ${assignedKeyRolesCount}`);
-           console.log(`Cadres éligibles moniteurs non utilisés pour rôle clé: ${moniteurEligiblePool.length - moniteursPourRepartition.length}`); // Combien de moniteurs éligibles ont été utilisés pour un rôle clé (devrait être 0 si les sets de grades sont exclusifs)
+           console.log(`Cadres éligibles moniteurs non utilisés pour rôle clé: ${moniteurEligiblePool.length - moniteursPourRepartition.length}`); // Combien de moniteurs éligibles ont été utilisés pour un rôle clé (devrait être 0 si les sets de grades sont exclusifs)
          console.log(`Cadres répartis comme moniteurs: ${assignedMoniteursCount}`);
          console.log(`Total cadres attribués dans la structure finale: ${totalCadresAttribuésFinal}`);
          console.log(`Cadres disponibles mais non attribués du tout (grades non éligibles aux rôles attribués) : ${cadresNonAttribues}`); // Ceux qui n'ont pas eu de rôle clé ET ne sont pas moniteurs éligibles

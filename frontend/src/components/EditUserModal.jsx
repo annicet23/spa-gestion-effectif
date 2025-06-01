@@ -4,7 +4,7 @@ import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function EditUserModal({ show, handleClose, user, onUserUpdated }) {
   const [formData, setFormData] = useState({
@@ -113,7 +113,7 @@ function EditUserModal({ show, handleClose, user, onUserUpdated }) {
         payload.newPassword = newPassword;
       }
 
-      const response = await axios.put(`${API_BASE_URL}/users/${user.id}`, payload, {
+      const response = await axios.put(`${API_BASE_URL}api/users/${user.id}`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -23,7 +23,7 @@ router.post('/', authenticateJWT, isAdmin, async (req, res) => {
     // TODO: Validation supplémentaire :
     // - Vérifier que le numero est unique (si ce n'est pas déjà une contrainte DB)
     // - Vérifier le format du numero si nécessaire
-
+onabort
     try {
         // Vérifier si un escadron avec le même numéro existe déjà
         const existingEscadron = await Escadron.findOne({ where: { numero: numero } });

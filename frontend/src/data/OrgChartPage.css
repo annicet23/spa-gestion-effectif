@@ -1,0 +1,194 @@
+/* ===== CONTENEUR PRINCIPAL ===== */
+.org-chart-container {
+  width: 100% !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 15px !important;
+  box-sizing: border-box;
+}
+
+/* ===== BARRE D'OUTILS ===== */
+.org-chart-toolbar {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #dee2e6;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.org-chart-title {
+  font-weight: 600;
+  color: #2c3e50;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ===== RESPONSIVE TOOLBAR ===== */
+@media (max-width: 1200px) {
+  .org-chart-toolbar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .org-chart-toolbar .d-flex:last-child {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .org-chart-title {
+    font-size: 18px !important;
+    text-align: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .org-chart-container {
+    padding: 0 10px !important;
+  }
+
+  .org-chart-title {
+    font-size: 16px !important;
+  }
+
+  .input-group {
+    width: 200px !important;
+  }
+
+  .btn-sm {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
+
+/* ===== CORRECTION SIDEBAR ===== */
+.org-chart-container {
+  /* Suppression des marges pour éviter les conflits avec sidebar */
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  /* Largeur pleine disponible */
+  width: calc(100vw - 160px) !important; /* 80px left + 80px right sidebar */
+  max-width: calc(100vw - 160px) !important;
+}
+
+/* ===== MODE PLEIN ÉCRAN ===== */
+.org-chart-container.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh;
+  z-index: 9999;
+  background: white;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ===== ZONE DE L'ORGANIGRAMME ===== */
+.rd3t-tree-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.rd3t-svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ===== EXPORT - MASQUER ÉLÉMENTS UI ===== */
+.org-chart-exporting .org-chart-toolbar {
+  display: none !important;
+}
+
+.org-chart-exporting .modal {
+  display: none !important;
+}
+
+/* ===== BOUTONS D'ÉDITION ===== */
+.edit-button {
+  transition: all 0.2s ease;
+}
+
+.edit-button:hover {
+  transform: scale(1.1);
+}
+
+/* ===== DROPDOWN MENU ===== */
+.dropdown-menu {
+  min-width: 150px;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+/* ===== MODALS ===== */
+.modal-dialog {
+  max-width: 600px;
+}
+
+.modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* ===== LOADING STATE ===== */
+.org-chart-container.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.org-chart-container.loading::after {
+  content: "Export en cours...";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  z-index: 1000;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal.show {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ===== CORRECTIONS SPÉCIFIQUES ===== */
+.container-fluid {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Assurer que rien ne dépasse */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  overflow-x: hidden;
+}
