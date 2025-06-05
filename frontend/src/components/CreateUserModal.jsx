@@ -21,10 +21,10 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
   const [isSubmitSuccess, setIsSubmitSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Nouveaux states pour les escadrons
+  // Nouveaux states pour les escadrons - ✅ CORRIGÉ
   const [needsEscadronSpec, setNeedsEscadronSpec] = useState(false);
   const [escadronSpecification, setEscadronSpecification] = useState('');
-  const [availableSpecifications] = useState(['1er escadron', '2ème escadron', '3ème escadron', '4ème escadron','5ème escadron','4ème escadron','5ème escadron','6ème escadron','7ème escadron','8ème escadron','10ème escadron']);
+  const [availableSpecifications] = useState(['1er escadron', '2ème escadron', '3ème escadron', '4ème escadron']);
 
   // Réinitialisation lors de la fermeture du modal
   useEffect(() => {
@@ -47,7 +47,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
     }
   }, [show]);
 
-  // Gestion de la navigation entre les étapes
+  // ✅ GESTION DE LA NAVIGATION ENTRE LES ÉTAPES - AMÉLIORÉE
   const handleNext = async () => {
     setSubmitMessage('');
     setSearchError(null);
@@ -59,7 +59,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
       }
       setCurrentStep(currentStep + 1);
 
-    } else if (currentStep === 2) { // Étape 2 : Saisie Matricule
+    } else if (currentStep === 2) { // ✅ ÉTAPE 2 CORRIGÉE : Saisie Matricule
       if (!matriculeInput.trim()) {
         Swal.fire('Attention', 'Veuillez entrer le matricule du cadre.', 'warning');
         return;
@@ -77,29 +77,49 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
           setIsSearchingCadre(false);
           return;
         }
-        const headers = { Authorization: `Bearer ${token}` };
 
-        const response = await axios.get(`${API_BASE_URL}api/cadres/matricule/${encodeURIComponent(matriculeInput.trim())}`, { headers });
+        // ✅ LOGS POUR DÉBUGGER
+        const fullUrl = `${API_BASE_URL}api/cadres/matricule/${encodeURIComponent(matriculeInput.trim())}`;
+        console.log('🔍 URL de recherche cadre:', fullUrl);
+        console.log('🔍 Token présent:', !!token);
+        console.log('🔍 Matricule recherché:', matriculeInput.trim());
+
+        const headers = { Authorization: `Bearer ${token}` };
+        const response = await axios.get(fullUrl, { headers });
+
+        console.log('✅ Réponse complète:', response);
+        console.log('✅ Données reçues:', response.data);
 
         if (response.data && response.data.id) {
+          console.log('✅ Cadre trouvé, ID:', response.data.id);
+
           setSelectedCadreDetails(response.data);
           setCadreIdToLink(response.data.id);
 
           // Vérifier si c'est un escadron
           if (response.data.entite === 'Escadron') {
+            console.log('✅ Escadron détecté, spécification requise');
             setNeedsEscadronSpec(true);
-            setCurrentStep(currentStep + 1);
           } else {
+            console.log('✅ Pas d\'escadron, pas de spécification nécessaire');
             setNeedsEscadronSpec(false);
             setEscadronSpecification('');
-            setCurrentStep(currentStep + 1);
           }
+
+          // ✅ PASSAGE À L'ÉTAPE SUIVANTE
+          console.log('✅ Passage à l\'étape 3');
+          setCurrentStep(currentStep + 1);
+
         } else {
+          console.log('❌ Aucun cadre trouvé dans la réponse');
           setSearchError(`Aucun cadre trouvé avec le matricule : ${matriculeInput.trim()}`);
         }
 
       } catch (error) {
-        console.error("Erreur lors de la recherche du cadre :", error);
+        console.error("❌ Erreur lors de la recherche du cadre :", error);
+        console.error("❌ Détails de l'erreur :", error.response?.data);
+        console.error("❌ Status :", error.response?.status);
+
         let errorMessage = "Erreur lors de la recherche du cadre.";
         if (error.response) {
           if (error.response.status === 404) {
@@ -113,13 +133,16 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
           }
         } else if (error.request) {
           errorMessage = "Erreur réseau : Impossible de joindre le serveur.";
+        } else {
+          errorMessage = "Erreur inattendue : " + error.message;
         }
         setSearchError(errorMessage);
 
       } finally {
+        console.log('🔄 Fin de la recherche, arrêt du spinner');
         setIsSearchingCadre(false);
       }
-      return;
+      return; // ✅ IMPORTANT : return pour éviter d'exécuter le reste
 
     } else if (currentStep === 3) { // Étape 3 : Confirmation Cadre + Spécification Escadron
       if (!selectedCadreDetails || !cadreIdToLink) {
@@ -127,10 +150,17 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         return;
       }
 
-      // Validation spécification escadron
+      // ✅ VALIDATION SPÉCIFICATION ESCADRON AMÉLIORÉE
       if (needsEscadronSpec) {
         if (!escadronSpecification) {
           Swal.fire('Attention', 'Veuillez sélectionner une spécification d\'escadron.', 'warning');
+          return;
+        }
+
+        // Validation stricte des spécifications
+        const validSpecs = ['1er escadron', '2ème escadron', '3ème escadron', '4ème escadron'];
+        if (!validSpecs.includes(escadronSpecification)) {
+          Swal.fire('Erreur', `Spécification invalide. Valeurs acceptées : ${validSpecs.join(', ')}`, 'error');
           return;
         }
       }
@@ -183,7 +213,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
     }
   };
 
-  // Soumission finale
+  // ✅ SOUMISSION FINALE AMÉLIORÉE
   const handleSubmit = async () => {
     setSubmitMessage('');
     setIsSubmitSuccess(false);
@@ -198,9 +228,9 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         return;
       }
 
-      // Préparer les données à envoyer au backend
+      // ✅ DONNÉES EXACTEMENT COMME ATTENDUES PAR LE BACKEND
       const newUser = {
-        username: username,
+        username: username.trim(),
         password: password,
         role: role,
         matricule: selectedCadreDetails.matricule,
@@ -211,37 +241,52 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         newUser.escadron_specification = escadronSpecification;
       }
 
-      console.log('Données envoyées pour création utilisateur:', newUser);
+      // ✅ LOGS DÉTAILLÉS POUR DÉBUGGER
+      console.log('🔍 API_BASE_URL:', API_BASE_URL);
+      console.log('🔍 URL complète:', `${API_BASE_URL}api/users`);
+      console.log('🔍 Données envoyées:', newUser);
+      console.log('🔍 Token présent:', !!token);
+      console.log('🔍 Headers:', { Authorization: `Bearer ${token}` });
 
       // Appel API pour créer l'utilisateur
       const response = await axios.post(`${API_BASE_URL}api/users`, newUser, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
       });
+
+      console.log('✅ Réponse serveur complète:', response);
+      console.log('✅ Données de réponse:', response.data);
 
       setSubmitMessage(response.data.message || 'Utilisateur créé avec succès !');
       setIsSubmitSuccess(true);
       onUserCreated();
 
     } catch (error) {
-      console.error("Erreur lors de la création de l'utilisateur :", error);
+      console.error("❌ Erreur complète:", error);
+      console.error("❌ Réponse serveur:", error.response?.data);
+      console.error("❌ Status:", error.response?.status);
+      console.error("❌ Headers de réponse:", error.response?.headers);
+
       let errorMessage = "Erreur lors de la création de l'utilisateur.";
-      if (error.response) {
-        if (error.response.status === 400 && error.response.data && error.response.data.message) {
-          errorMessage = "Erreur API : " + error.response.data.message;
-        } else if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage = "Vous n'êtes pas autorisé à créer des utilisateurs.";
-        } else if (error.response.status === 409) {
-          errorMessage = "Erreur API : " + (error.response.data.message || "Conflit de données.");
-        } else if (error.response.data && error.response.data.message) {
-          errorMessage = "Erreur API : " + error.response.data.message;
-        } else {
-          errorMessage = `Erreur serveur : ${error.response.status} ${error.response.statusText}`;
-        }
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 403) {
+        errorMessage = "❌ ACCÈS REFUSÉ : Vous devez être administrateur pour créer des utilisateurs !";
+      } else if (error.response?.status === 401) {
+        errorMessage = "❌ NON AUTORISÉ : Veuillez vous reconnecter.";
+      } else if (error.response?.status === 400) {
+        errorMessage = "❌ DONNÉES INVALIDES : " + (error.response.data?.message || "Vérifiez les informations saisies.");
+      } else if (error.response?.status === 409) {
+        errorMessage = "❌ CONFLIT : " + (error.response.data?.message || "Nom d'utilisateur ou cadre déjà utilisé.");
       } else if (error.request) {
-        errorMessage = "Erreur réseau : Impossible de joindre le serveur.";
+        errorMessage = "❌ ERREUR RÉSEAU : Impossible de joindre le serveur.";
       } else {
-        errorMessage = "Erreur inattendue lors de la requête.";
+        errorMessage = "❌ ERREUR INATTENDUE : " + error.message;
       }
+
       setSubmitMessage(errorMessage);
       setIsSubmitSuccess(false);
 
@@ -287,19 +332,25 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
                 onChange={(e) => setMatriculeInput(e.target.value)}
                 placeholder="Entrez le matricule du cadre"
                 required
+                disabled={isSearchingCadre}
               />
               <Form.Text className="text-muted">
                 L'utilisateur sera automatiquement lié à ce cadre.
               </Form.Text>
             </Form.Group>
+
+            {/* ✅ INDICATEUR DE RECHERCHE AMÉLIORÉ */}
             {isSearchingCadre && (
-              <div className="d-flex align-items-center">
+              <div className="d-flex align-items-center mb-3">
                 <Spinner animation="border" size="sm" className="me-2" />
                 <span>Recherche du cadre en cours...</span>
               </div>
             )}
+
+            {/* ✅ AFFICHAGE D'ERREUR AMÉLIORÉ */}
             {searchError && (
               <Alert variant="danger" className="mt-3">
+                <i className="bi bi-exclamation-triangle me-2"></i>
                 {searchError}
               </Alert>
             )}
@@ -313,7 +364,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
             {selectedCadreDetails && (
               <div>
                 <Alert variant="success">
-                  <strong>Cadre trouvé :</strong><br />
+                  <strong>✅ Cadre trouvé :</strong><br />
                   <strong>Nom :</strong> {selectedCadreDetails.nom} {selectedCadreDetails.prenom}<br />
                   <strong>Grade :</strong> {selectedCadreDetails.grade}<br />
                   <strong>Matricule :</strong> {selectedCadreDetails.matricule}<br />
@@ -324,11 +375,11 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
                   )}
                 </Alert>
 
-                {/* Section Spécification Escadron */}
+                {/* ✅ SECTION SPÉCIFICATION ESCADRON AMÉLIORÉE */}
                 {needsEscadronSpec && (
                   <div className="mt-3">
                     <Alert variant="info">
-                      <strong>Spécification Escadron Requise</strong><br />
+                      <strong>⚠️ Spécification Escadron Requise</strong><br />
                       Ce cadre appartient à un escadron. Veuillez spécifier quelle partie de l'escadron cet utilisateur supervisera :
                     </Alert>
                     <Form.Group>
@@ -344,14 +395,14 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
                         ))}
                       </Form.Select>
                       <Form.Text className="text-muted">
-                        Précisez quelle partie de l'escadron supervise cet utilisateur (ex: 1er escadron, 2ème escadron...).
+                        Précisez quelle partie de l'escadron supervise cet utilisateur.
                       </Form.Text>
                     </Form.Group>
                   </div>
                 )}
 
                 <p className="mt-3 text-muted">
-                  Confirmer la liaison de cet utilisateur avec ce cadre ?
+                  ✅ Confirmer la liaison de cet utilisateur avec ce cadre ?
                 </p>
               </div>
             )}
@@ -377,7 +428,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
             </Form.Group>
             {selectedCadreDetails && (
               <Alert variant="info">
-                <strong>Suggestion :</strong> Vous pourriez utiliser quelque chose comme "{selectedCadreDetails.prenom?.toLowerCase()}.{selectedCadreDetails.nom?.toLowerCase()}" ou "{selectedCadreDetails.matricule}"
+                <strong>💡 Suggestion :</strong> Vous pourriez utiliser quelque chose comme "{selectedCadreDetails.prenom?.toLowerCase()}.{selectedCadreDetails.nom?.toLowerCase()}" ou "{selectedCadreDetails.matricule}"
               </Alert>
             )}
           </div>
@@ -418,7 +469,7 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
           <div>
             <h5>Étape 6: Récapitulatif</h5>
             <Alert variant="light">
-              <strong>Récapitulatif de l'utilisateur à créer :</strong><br />
+              <strong>📋 Récapitulatif de l'utilisateur à créer :</strong><br />
               <strong>Rôle :</strong> {role}<br />
               <strong>Nom d'utilisateur :</strong> {username}<br />
               <strong>Cadre associé :</strong> {selectedCadreDetails?.grade} {selectedCadreDetails?.nom} {selectedCadreDetails?.prenom}<br />
@@ -433,15 +484,17 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
               )}
             </Alert>
 
+            {/* ✅ AFFICHAGE DES MESSAGES AMÉLIORÉ */}
             {submitMessage && (
               <Alert variant={isSubmitSuccess ? "success" : "danger"} className="mt-3">
+                {isSubmitSuccess ? "✅ " : "❌ "}
                 {submitMessage}
               </Alert>
             )}
 
             {!isSubmitSuccess && (
               <p className="text-muted">
-                Vérifiez les informations ci-dessus et cliquez sur "Créer l'utilisateur" pour finaliser.
+                ✅ Vérifiez les informations ci-dessus et cliquez sur "Créer l'utilisateur" pour finaliser.
               </p>
             )}
           </div>
@@ -452,21 +505,29 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
         <div className="d-flex justify-content-between w-100">
           <div>
             {currentStep > 1 && !isSubmitSuccess && (
-              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting}>
+              <Button variant="secondary" onClick={handleBack} disabled={isSubmitting || isSearchingCadre}>
+                <i className="bi bi-arrow-left me-2"></i>
                 Précédent
               </Button>
             )}
           </div>
           <div>
             {currentStep < 6 ? (
-              <Button variant="primary" onClick={handleNext} disabled={isSearchingCadre}>
+              <Button
+                variant="primary"
+                onClick={handleNext}
+                disabled={isSearchingCadre || isSubmitting}
+              >
                 {isSearchingCadre ? (
                   <>
                     <Spinner animation="border" size="sm" className="me-2" />
                     Recherche...
                   </>
                 ) : (
-                  'Suivant'
+                  <>
+                    Suivant
+                    <i className="bi bi-arrow-right ms-2"></i>
+                  </>
                 )}
               </Button>
             ) : (
@@ -479,11 +540,15 @@ function CreateUserModal({ show, handleClose, onUserCreated }) {
                         Création...
                       </>
                     ) : (
-                      'Créer l\'utilisateur'
+                      <>
+                        <i className="bi bi-person-plus me-2"></i>
+                        Créer l'utilisateur
+                      </>
                     )}
                   </Button>
                 ) : (
                   <Button variant="primary" onClick={handleClose}>
+                    <i className="bi bi-check-lg me-2"></i>
                     Fermer
                   </Button>
                 )}

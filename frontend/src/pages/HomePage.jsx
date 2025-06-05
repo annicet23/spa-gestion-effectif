@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import Swal from 'sweetalert2';
 
 import PersonList from '../components/PersonList';
 
@@ -51,7 +52,7 @@ const getHistoricalDate = (realTime, timezone = 'Indian/Antananarivo') => {
 };
 
 function HomePage() {
-    const { user, token } = useAuth();
+    const { user, token, login } = useAuth();
 
     // --- États existants ---
     const [cadreStats, setCadreStats] = useState(defaultStats);
@@ -76,19 +77,244 @@ function HomePage() {
     // --- État pour l'exportation Excel ---
     const [isExporting, setIsExporting] = useState(false);
 
+    // ✅ NOUVEAUX ÉTATS POUR LA ROTATION
+    const [isCheckingRotation, setIsCheckingRotation] = useState(false);
+    const [rotationProcessed, setRotationProcessed] = useState(false);
+
     const printAreaRef = useRef(null);
+
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+    // ✅ FONCTION DE ROTATION DES CONSULTANTS
+    const handleConsultantRotation = async () => {
+        console.log('🔄 Démarrage du processus de rotation consultant depuis HomePage');
+
+        try {
+            // Étape 1: Demander le matricule du nouveau responsable
+            const { value: newMatricule, dismiss: matriculeDismiss } = await Swal.fire({
+                title: '🔄 Rotation hebdomadaire requise',
+                text: 'Votre compte consultant doit être mis à jour. Veuillez saisir le matricule du nouveau responsable.',
+                input: 'text',
+                inputPlaceholder: 'Matricule du nouveau responsable',
+                showCancelButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Suivant',
+                customClass: {
+                    popup: 'animated-popup',
+                    confirmButton: 'swal-confirm-btn'
+                },
+                inputValidator: (value) => {
+                    if (!value || value.trim() === '') {
+                        return 'Le matricule du nouveau responsable est requis !';
+                    }
+                }
+            });
+
+            if (matriculeDismiss) return false;
+
+            // Étape 2: Vérifier si le cadre existe
+            const cadreResponse = await fetch(`${API_BASE_URL}api/cadres/matricule/${newMatricule.trim()}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!cadreResponse.ok) {
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Matricule non trouvé. Veuillez vérifier le matricule du nouveau responsable.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
+                return await handleConsultantRotation(); // Retry
+            }
+
+            const newCadreData = await cadreResponse.json();
+
+            // Étape 3: Formulaire complet de rotation
+            const { value: rotationData, dismiss: rotationDismiss } = await Swal.fire({
+                title: '🔐 Finalisation de la rotation',
+                html: `
+                    <div class="rotation-form">
+                        <div class="mb-3">
+                            <p><strong>Nouveau responsable:</strong> ${newCadreData.grade} ${newCadreData.nom} ${newCadreData.prenom}</p>
+                            <p><strong>Entité:</strong> ${newCadreData.entite} ${newCadreData.service || newCadreData.cours || ''}</p>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label">Mot de passe actuel (sécurité):</label>
+                            <input id="current-password" type="password" class="swal2-input" placeholder="Votre mot de passe actuel">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nouveau nom d'utilisateur:</label>
+                            <input id="new-username" type="text" class="swal2-input" placeholder="Nouveau nom d'utilisateur">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nouveau mot de passe:</label>
+                            <input id="new-password" type="password" class="swal2-input" placeholder="Nouveau mot de passe">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirmer le nouveau mot de passe:</label>
+                            <input id="confirm-password" type="password" class="swal2-input" placeholder="Confirmer le mot de passe">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Effectuer la rotation',
+                customClass: {
+                    popup: 'animated-popup rotation-popup',
+                    confirmButton: 'swal-confirm-btn'
+                },
+                preConfirm: () => {
+                    const currentPassword = document.getElementById('current-password').value;
+                    const newUsername = document.getElementById('new-username').value;
+                    const newPassword = document.getElementById('new-password').value;
+                    const confirmPassword = document.getElementById('confirm-password').value;
+
+                    if (!currentPassword || !newUsername || !newPassword || !confirmPassword) {
+                        Swal.showValidationMessage('Tous les champs sont requis.');
+                        return false;
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                        Swal.showValidationMessage('Les mots de passe ne correspondent pas.');
+                        return false;
+                    }
+
+                    if (newPassword.length < 6) {
+                        Swal.showValidationMessage('Le mot de passe doit faire au moins 6 caractères.');
+                        return false;
+                    }
+
+                    if (newUsername.length < 3) {
+                        Swal.showValidationMessage('Le nom d\'utilisateur doit faire au moins 3 caractères.');
+                        return false;
+                    }
+
+                    return {
+                        currentPassword,
+                        newUsername: newUsername.trim(),
+                        newPassword,
+                        newCadreId: newCadreData.id,
+                        newMatricule: newMatricule.trim()
+                    };
+                }
+            });
+
+            if (rotationDismiss) return false;
+
+            // Étape 4: Envoyer la demande de rotation au backend
+            setIsCheckingRotation(true);
+            const rotationResponse = await fetch(`${API_BASE_URL}api/auth/rotate-consultant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    currentPassword: rotationData.currentPassword,
+                    newUsername: rotationData.newUsername,
+                    newPassword: rotationData.newPassword,
+                    newCadreId: rotationData.newCadreId,
+                    newMatricule: rotationData.newMatricule
+                })
+            });
+
+            const rotationResult = await rotationResponse.json();
+
+            if (rotationResponse.ok) {
+                await Swal.fire({
+                    title: '✅ Rotation réussie !',
+                    html: `
+                        <div class="text-center">
+                            <p><strong>Votre compte a été mis à jour avec succès.</strong></p>
+                            <p>Nouveau responsable: ${newCadreData.grade} ${newCadreData.nom} ${newCadreData.prenom}</p>
+                            <p>Nouveau nom d'utilisateur: ${rotationData.newUsername}</p>
+                            <p>L'interface va se recharger avec vos nouvelles informations...</p>
+                        </div>
+                    `,
+                    icon: 'success',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    customClass: { popup: 'animated-popup' }
+                });
+
+                // Mettre à jour le contexte d'authentification
+                login(rotationResult.token, rotationResult.user);
+                setRotationProcessed(true);
+                return true;
+            } else {
+                throw new Error(rotationResult.message || 'Erreur lors de la rotation');
+            }
+
+        } catch (error) {
+            console.error('Erreur rotation consultant:', error);
+            await Swal.fire({
+                title: 'Erreur de rotation',
+                text: error.message || 'Une erreur est survenue lors de la rotation. Veuillez réessayer.',
+                icon: 'error',
+                customClass: { popup: 'animated-popup' }
+            });
+
+            return await handleConsultantRotation();
+        } finally {
+            setIsCheckingRotation(false);
+        }
+    };
+
+    // ✅ FONCTION UTILITAIRE - Vérifier si c'est vendredi et rotation nécessaire
+    const isFridayAndRotationNeeded = (userData) => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 = Dimanche, 5 = Vendredi
+
+        // Pour les tests, décommentez la ligne suivante pour forcer la rotation
+        // return userData.role === 'Consultant' && !rotationProcessed;
+
+        return dayOfWeek === 5 &&
+               userData.role === 'Consultant' &&
+               userData.needsWeeklyRotation &&
+               !rotationProcessed;
+    };
+
+    // ✅ VÉRIFICATION DE ROTATION AU CHARGEMENT DE LA PAGE
+    useEffect(() => {
+        const checkRotationNeed = async () => {
+            if (!user || !token || rotationProcessed || isCheckingRotation) return;
+
+            console.log('🔍 Vérification rotation au chargement HomePage:', {
+                role: user.role,
+                needsWeeklyRotation: user.needsWeeklyRotation,
+                rotationProcessed
+            });
+
+            if (isFridayAndRotationNeeded(user)) {
+                console.log('🔄 Rotation requise - Lancement du processus depuis HomePage');
+                setIsCheckingRotation(true);
+
+                setTimeout(async () => {
+                    const rotationSuccess = await handleConsultantRotation();
+                    if (!rotationSuccess) {
+                        setIsCheckingRotation(false);
+                    }
+                }, 1000);
+            }
+        };
+
+        checkRotationNeed();
+    }, [user, token, rotationProcessed]);
 
     // --- Récupération des options de filtres ---
     useEffect(() => {
         const fetchFilterOptions = async () => {
-            if (!token) return;
+            if (!token || isCheckingRotation) return;
 
             setIsLoadingFilters(true);
             try {
                 console.log('🔄 Récupération des options de filtres...');
 
                 // Récupérer les services disponibles
-                const servicesResponse = await fetch('/api/cadres/services', {
+                const servicesResponse = await fetch(`${API_BASE_URL}api/cadres/services`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -105,7 +331,7 @@ function HomePage() {
                 }
 
                 // Récupérer les escadrons disponibles
-                const escadronsResponse = await fetch('/api/escadrons', {
+                const escadronsResponse = await fetch(`${API_BASE_URL}api/escadrons`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -129,12 +355,12 @@ function HomePage() {
         };
 
         fetchFilterOptions();
-    }, [token]);
+    }, [token, user, isCheckingRotation]);
 
-    // --- Récupération des statistiques avec filtres ---
+    // --- Récupération des statistiques avec filtres ET CALCULS CORRIGÉS ---
     useEffect(() => {
         const fetchStats = async () => {
-            if (!token) return;
+            if (!token || isCheckingRotation) return;
 
             setIsLoadingStats(true);
             setErrorStats(null);
@@ -166,7 +392,7 @@ function HomePage() {
                     console.log('🎯 Filtre escadron appliqué:', selectedEscadron);
                 }
 
-                const url = `/api/mises-a-jour/cadres/summary?${queryParams.toString()}`;
+                const url = `${API_BASE_URL}api/mises-a-jour/cadres/summary?${queryParams.toString()}`;
                 console.log('🔗 URL de requête:', url);
 
                 const response = await fetch(url, {
@@ -186,21 +412,30 @@ function HomePage() {
                 const data = await response.json();
                 console.log("✅ Réponse de l'API statistiques:", data);
 
-                const cadreTotal = data.total_cadres ?? 0;
-                const cadreAbsent = data.absents_cadres ?? 0;
-                const cadreIndisponible = data.indisponibles_cadres ?? 0;
-                const cadrePresentCalculated = data.presents_cadres ?? (cadreTotal - cadreAbsent);
-                const cadreSurLeRangCalculated = data.sur_le_rang_cadres ?? (cadrePresentCalculated - cadreIndisponible);
+                // ✅ CALCULS CORRIGÉS SELON VOS SPÉCIFICATIONS
+                const cadreTotal = data.total_cadres ?? 0;              // R (Total)
+                const cadreAbsent = data.absents_cadres ?? 0;           // A (Absent)
+                const cadreIndisponible = data.indisponibles_cadres ?? 0; // I (Indisponible)
+
+                // 🧮 NOUVEAUX CALCULS :
+                const cadrePresentCalculated = cadreTotal - cadreAbsent;           // P = R - A
+                const cadreSurLeRangCalculated = cadrePresentCalculated - cadreIndisponible; // S = P - I
 
                 const newStats = {
-                    total: cadreTotal,
-                    absent: cadreAbsent,
-                    indisponible: cadreIndisponible,
-                    present: cadrePresentCalculated,
-                    surLeRang: cadreSurLeRangCalculated
+                    total: cadreTotal,                    // R
+                    absent: cadreAbsent,                  // A
+                    present: cadrePresentCalculated,      // P = R - A ✅
+                    indisponible: cadreIndisponible,      // I
+                    surLeRang: cadreSurLeRangCalculated   // S = P - I ✅
                 };
 
-                console.log('📈 Statistiques calculées:', newStats);
+                console.log('🧮 Statistiques calculées avec nouvelles formules:');
+                console.log(`   R (Total): ${newStats.total}`);
+                console.log(`   A (Absent): ${newStats.absent}`);
+                console.log(`   P (Présent): ${newStats.present} = ${newStats.total} - ${newStats.absent}`);
+                console.log(`   I (Indisponible): ${newStats.indisponible}`);
+                console.log(`   S (Sur le rang): ${newStats.surLeRang} = ${newStats.present} - ${newStats.indisponible}`);
+
                 setCadreStats(newStats);
 
             } catch (error) {
@@ -214,7 +449,7 @@ function HomePage() {
 
         fetchStats();
 
-    }, [token, selectedService, selectedEscadron]); // Recharger quand les filtres changent
+    }, [token, selectedService, selectedEscadron, isCheckingRotation]);
 
     // --- Récupération des listes avec filtres ---
     const fetchSpecificList = async (type, category) => {
@@ -265,7 +500,12 @@ function HomePage() {
                 console.log(`🎯 Filtre escadron appliqué à la liste ${type}:`, selectedEscadron);
             }
 
-            const url = `/api/cadres?${queryParams.toString()}`;
+            // ✅ ROUTE ADAPTÉE POUR LES CONSULTANTS (accès global)
+            const baseUrl = user?.role === 'Consultant' ?
+                `${API_BASE_URL}api/cadres/all` :
+                `${API_BASE_URL}api/cadres`;
+
+            const url = `${baseUrl}?${queryParams.toString()}`;
             console.log(`🔗 URL pour liste ${type}:`, url);
 
             const response = await fetch(url, {
@@ -330,7 +570,6 @@ function HomePage() {
         const newService = e.target.value;
         console.log('🏢 Changement de service:', newService);
         setSelectedService(newService);
-        // Réinitialiser l'affichage des listes quand on change les filtres
         setDisplayListInfo(null);
         setPersonListData(defaultPersonListData);
     };
@@ -339,7 +578,6 @@ function HomePage() {
         const newEscadron = e.target.value;
         console.log('🎯 Changement d\'escadron:', newEscadron);
         setSelectedEscadron(newEscadron);
-        // Réinitialiser l'affichage des listes quand on change les filtres
         setDisplayListInfo(null);
         setPersonListData(defaultPersonListData);
     };
@@ -350,7 +588,6 @@ function HomePage() {
         try {
             console.log('📊 Exportation des statistiques vers Excel...');
 
-            // Créer les données pour le fichier Excel
             const statsData = [
                 ['Statistiques SPA du', displayDateLabel],
                 [''],
@@ -358,7 +595,6 @@ function HomePage() {
                 ['Cadres', cadreStats.total, cadreStats.absent, cadreStats.present, cadreStats.indisponible, cadreStats.surLeRang]
             ];
 
-            // Ajouter les filtres appliqués
             if (selectedService || selectedEscadron) {
                 statsData.splice(2, 0, ['Filtres appliqués:']);
                 if (selectedService) {
@@ -375,7 +611,6 @@ function HomePage() {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Statistiques');
 
-            // Générer le nom du fichier avec les filtres
             let fileName = `statistiques_spa_${printDate.replace(/\//g, '-')}`;
             if (selectedService) fileName += `_${selectedService}`;
             if (selectedEscadron) fileName += `_escadron${selectedEscadron}`;
@@ -396,7 +631,6 @@ function HomePage() {
         try {
             console.log(`📊 Exportation de la liste ${type} vers Excel...`);
 
-            // S'assurer que les données sont chargées
             let data = personListData.cadre[type];
             if (!data || data.length === 0) {
                 console.log(`⏳ Récupération des données pour ${type}...`);
@@ -408,7 +642,6 @@ function HomePage() {
                 return;
             }
 
-            // Préparer les données pour Excel
             const headers = ['Grade', 'Nom', 'Prénom', 'Matricule', 'Service', 'Escadron', 'Motif'];
             const excelData = [headers];
 
@@ -428,7 +661,6 @@ function HomePage() {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, `${type}s`);
 
-            // Générer le nom du fichier
             let fileName = `liste_${type}s_${printDate.replace(/\//g, '-')}`;
             if (selectedService) fileName += `_${selectedService}`;
             if (selectedEscadron) fileName += `_escadron${selectedEscadron}`;
@@ -495,7 +727,7 @@ function HomePage() {
         }
     };
 
-    // --- Fonction de génération PDF (mise à jour pour inclure les filtres) ---
+    // --- Fonction de génération PDF ---
     const handleGeneratePdf = async () => {
         setIsGeneratingPdf(true);
         setErrorStats(null);
@@ -549,7 +781,6 @@ function HomePage() {
                 heightLeft -= pageHeight;
             }
 
-            // Ajouter les filtres au nom du fichier PDF
             let pdfFileName = `rapport_spa_cadres_${printDate.replace(/\//g, '-')}`;
             if (selectedService) pdfFileName += `_${selectedService}`;
             if (selectedEscadron) pdfFileName += `_escadron${selectedEscadron}`;
@@ -578,14 +809,13 @@ function HomePage() {
         if (displayListInfo.types.length === 1) {
             const type = displayListInfo.types[0];
             const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
-            title = `${capitalizedType}s`; // ✅ SUPPRIMÉ LA RÉPÉTITION
+            title = `${capitalizedType}s`;
         } else if (displayListInfo.types.length === 2 && displayListInfo.types.includes('absent') && displayListInfo.types.includes('indisponible')) {
-            title = `Absents et Indisponibles`; // ✅ SUPPRIMÉ LA RÉPÉTITION
+            title = `Absents et Indisponibles`;
         } else {
             title = `Personnel`;
         }
 
-        // Ajouter les filtres au titre
         const filters = [];
         if (selectedService) filters.push(`Service: ${selectedService}`);
         if (selectedEscadron) {
@@ -598,7 +828,6 @@ function HomePage() {
         }
 
         return title;
-
     }, [displayListInfo, selectedService, selectedEscadron, availableEscadrons]);
 
     const isSpecificListLoading = (type) => {
@@ -621,7 +850,6 @@ function HomePage() {
         return groupAndCountMotifs(personListData.cadre.indisponible);
     }, [personListData.cadre.indisponible]);
 
-    // Fonction pour réinitialiser les filtres
     const handleResetFilters = () => {
         console.log('🔄 Réinitialisation des filtres');
         setSelectedService('');
@@ -629,6 +857,21 @@ function HomePage() {
         setDisplayListInfo(null);
         setPersonListData(defaultPersonListData);
     };
+
+    // ✅ BLOCAGE SI ROTATION EN COURS
+    if (isCheckingRotation) {
+        return (
+            <div className="container-fluid d-flex justify-content-center align-items-center min-vh-100">
+                <div className="text-center">
+                    <div className="spinner-border text-primary mb-3" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <h4>🔄 Rotation en cours...</h4>
+                    <p className="text-muted">Veuillez patienter pendant la mise à jour de votre compte.</p>
+                </div>
+            </div>
+        );
+    }
 
     // Afficher le tableau de bord avec les statistiques
     return (
@@ -644,6 +887,12 @@ function HomePage() {
                 <div className="homepage-stats-section">
                     <div className="spa-header">
                         <h2 className="mb-3">SPA du {displayDateLabel}</h2>
+                        {/* ✅ INDICATEUR ROLE CONSULTANT */}
+                        {user?.role === 'Consultant' && (
+                            <div className="badge bg-success mb-3">
+                                👥 Accès Service de semaine
+                            </div>
+                        )}
                     </div>
 
                     {/* Section des filtres */}
@@ -727,10 +976,10 @@ function HomePage() {
                         </div>
                     </div>
 
-                    {/* ✅ CARTES STATISTIQUES - TAILLE FIXE */}
+                    {/* ✅ CARTES STATISTIQUES AVEC CALCULS CORRIGÉS */}
                     <div className="stats-container-fixed">
                         <div className="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
-                            {/* Carte Total */}
+                            {/* Carte Total (R) */}
                             <div className="col">
                                 <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
@@ -743,7 +992,7 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Absent */}
+                            {/* Carte Absent (A) */}
                             <div className="col">
                                 <div className="card text-center h-100 dashboard-card stats-card clickable-card"
                                      onClick={() => handleCardClick('absent')}
@@ -759,7 +1008,7 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Présent */}
+                            {/* Carte Présent (P = R - A) ✅ */}
                             <div className="col">
                                 <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
@@ -768,11 +1017,12 @@ function HomePage() {
                                         </svg>
                                         <h5 className="card-title">Présent (P)</h5>
                                         <p className="card-text fs-3">{cadreStats.present ?? 0}</p>
+                                        <small className="text-muted">R - A = {cadreStats.total} - {cadreStats.absent}</small>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Carte Indisponible */}
+                            {/* Carte Indisponible (I) */}
                             <div className="col">
                                 <div className="card text-center h-100 dashboard-card stats-card clickable-card"
                                      onClick={() => handleCardClick('indisponible')}
@@ -788,15 +1038,16 @@ function HomePage() {
                                 </div>
                             </div>
 
-                            {/* Carte Sur le rang */}
+                            {/* Carte Sur le rang (S = P - I) ✅ */}
                             <div className="col">
                                 <div className="card text-center h-100 dashboard-card stats-card">
                                     <div className="card-body d-flex flex-column justify-content-center align-items-center">
                                         <svg className="bi mb-2 text-info" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
-                                            <path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2zM9.5 3.5v-2L14 8.5V14h-1V8.5a1.5 1.5 0 0 0-1.5-1.5H9.5z"/>
+                                            <path d="M12.17 9.53c2.307-2.592 3.278-4.684 3.641-6.218.21-.887.214-1.58.16-2.065a3.578 3.578 0 0 0-.108-.563 2.22 2.22 0 0 0-.078-.23V.453c0-.864-.933-1.453-1.617-.978L8 4.347 1.85-.525C1.167-.002.234.588.234 1.453v.232a2.22 2.22 0 0 0-.078.23 3.578 3.578 0 0 0-.108.563c-.054.485-.05 1.178.16 2.065.363 1.534 1.334 3.626 3.641 6.218l.33.371a2.001 2.001 0 0 0 2.98 0l.33-.371zM8 5.993c1.664-1.711 5.825 1.283 0 5.132-5.825-3.85-1.664-6.843 0-5.132z"/>
                                         </svg>
                                         <h5 className="card-title">Sur le rang (S)</h5>
                                         <p className="card-text fs-3">{cadreStats.surLeRang ?? 0}</p>
+                                        <small className="text-muted">P - I = {cadreStats.present} - {cadreStats.indisponible}</small>
                                     </div>
                                 </div>
                             </div>
@@ -928,16 +1179,16 @@ function HomePage() {
                             )}
                         </div>
 
-                        {/* Tableau Récapitulatif */}
+                        {/* Tableau Récapitulatif avec calculs corrigés */}
                         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10mm', border: '1px solid #000' }}>
                             <thead>
                                 <tr>
                                     <th rowSpan="2" style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '20%', fontWeight: 'bold' }}>EFFECTIF</th>
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>R</th>
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>A</th>
-                                    <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>P</th>
+
                                     <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>I</th>
-                                    <th style={{ border: '1px solid #000', padding: '5px', textAlign: 'center', width: '16%', fontWeight: 'bold' }}>S</th>
+
                                 </tr>
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{cadreStats.total ?? 0}</td>

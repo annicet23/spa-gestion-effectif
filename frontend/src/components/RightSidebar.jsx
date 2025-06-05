@@ -291,6 +291,48 @@ function RightSidebar() {
         };
     }, [token, isAdminOrConsultant, user]);
 
+    // ✅ NOUVELLE FONCTION - Affichage de qui a fait la mise à jour
+    const renderUpdaterInfo = (submission) => {
+        if (!submission.is_updated_by_responsible && submission.ActualUpdater) {
+            // Mise à jour par un consultant (gradé de semaine)
+            return (
+                <div className="mb-2">
+                    <i className="bi bi-person-badge text-warning me-2"></i>
+                    <strong>Mise à jour par le gradé de semaine:</strong>
+                    <span className="ms-1 fw-bold text-warning">
+                        {submission.ActualUpdater.username}
+                    </span>
+                    {submission.ActualUpdater.nom && submission.ActualUpdater.prenom && (
+                        <span className="text-muted ms-1">
+                            ({submission.ActualUpdater.nom} {submission.ActualUpdater.prenom})
+                        </span>
+                    )}
+                    {submission.actual_updater_grade && (
+                        <span className="badge bg-warning text-dark ms-2">
+                            {submission.actual_updater_grade}
+                        </span>
+                    )}
+                </div>
+            );
+        } else {
+            // Mise à jour par le responsable
+            return (
+                <div className="mb-2">
+                    <i className="bi bi-person-fill text-primary me-2"></i>
+                    <strong>Mise à jour par le responsable:</strong>
+                    <span className="ms-1 fw-bold text-success">
+                        {user?.username || 'Vous'}
+                    </span>
+                    {user?.nom && user?.prenom && (
+                        <span className="text-muted ms-1">
+                            ({user.nom} {user.prenom})
+                        </span>
+                    )}
+                </div>
+            );
+        }
+    };
+
     return (
         <>
             {isMobile && (
@@ -467,19 +509,8 @@ function RightSidebar() {
 
                                                                 {/* Détails de la soumission */}
                                                                 <div className="ms-3">
-                                                                    {/* Qui a fait la soumission */}
-                                                                    <div className="mb-2">
-                                                                        <i className="bi bi-person-fill text-primary me-2"></i>
-                                                                        <strong>Soumission faite par:</strong>
-                                                                        <span className="ms-1 fw-bold text-success">
-                                                                            {user?.username || 'Vous'}
-                                                                        </span>
-                                                                        {user?.nom && user?.prenom && (
-                                                                            <span className="text-muted ms-1">
-                                                                                ({user.nom} {user.prenom})
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
+                                                                    {/* ✅ MODIFIÉ - Affichage de qui a fait la mise à jour */}
+                                                                    {renderUpdaterInfo(submission)}
 
                                                                     {/* Sur quel cadre */}
                                                                     {submission.Cadre && (
@@ -649,16 +680,33 @@ function RightSidebar() {
                                                         </span>
                                                     </div>
 
-                                                    {submission.SubmittedBy && (
+                                                    {/* ✅ MODIFIÉ - Affichage de qui a fait la mise à jour dans la modal */}
+                                                    {submission.is_updated_by_responsible ? (
                                                         <div className="mb-1">
                                                             <i className="bi bi-person-fill me-2"></i>
-                                                            Soumis par :
+                                                            Soumis par le responsable :
                                                             <strong>
-                                                                {submission.SubmittedBy.nom_complet || submission.SubmittedBy.username}
-                                                                {` (${submission.SubmittedBy.username})`}
+                                                                {submission.SubmittedBy?.nom_complet || submission.SubmittedBy?.username}
+                                                                {submission.SubmittedBy?.username && ` (${submission.SubmittedBy.username})`}
                                                             </strong>
-                                                            {submission.SubmittedBy.Cadre?.fonction && (
+                                                            {submission.SubmittedBy?.Cadre?.fonction && (
                                                                 <small className="text-muted ms-2">({submission.SubmittedBy.Cadre.fonction})</small>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mb-1">
+                                                            <i className="bi bi-person-badge text-warning me-2"></i>
+                                                            Mise à jour par le gradé de semaine :
+                                                            <strong className="text-warning">
+                                                                {submission.ActualUpdater?.username || 'Consultant'}
+                                                                {submission.ActualUpdater?.nom && submission.ActualUpdater?.prenom &&
+                                                                    ` (${submission.ActualUpdater.nom} ${submission.ActualUpdater.prenom})`
+                                                                }
+                                                            </strong>
+                                                            {submission.actual_updater_grade && (
+                                                                <span className="badge bg-warning text-dark ms-2">
+                                                                    {submission.actual_updater_grade}
+                                                                </span>
                                                             )}
                                                         </div>
                                                     )}

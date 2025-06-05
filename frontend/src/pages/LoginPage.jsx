@@ -24,7 +24,194 @@ function LoginPage() {
     const handleRememberMeChange = (event) => setRememberMe(event.target.checked);
     const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
-    // ... (gardez toutes vos fonctions existantes: handleMatriculePrompt, handleProfileUpdatePrompt, etc.)
+    // ✅ NOUVELLE FONCTION - Gestion de la rotation des consultants
+    const handleConsultantRotation = async (userToken, userData) => {
+        console.log('🔄 Démarrage du processus de rotation consultant');
+
+        try {
+            // Étape 1: Demander le matricule du nouveau responsable
+            const { value: newMatricule, dismiss: matriculeDismiss } = await Swal.fire({
+                title: '🔄 Rotation hebdomadaire requise',
+                text: 'Votre compte consultant doit être mis à jour. Veuillez saisir le matricule du nouveau responsable.',
+                input: 'text',
+                inputPlaceholder: 'Matricule du nouveau responsable',
+                showCancelButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Suivant',
+                customClass: {
+                    popup: 'animated-popup',
+                    confirmButton: 'swal-confirm-btn'
+                },
+                inputValidator: (value) => {
+                    if (!value || value.trim() === '') {
+                        return 'Le matricule du nouveau responsable est requis !';
+                    }
+                }
+            });
+
+            if (matriculeDismiss) return;
+
+            // Étape 2: Vérifier si le cadre existe
+            const cadreResponse = await fetch(`${API_BASE_URL}api/cadres/matricule/${newMatricule.trim()}`, {
+                headers: { Authorization: `Bearer ${userToken}` }
+            });
+
+            if (!cadreResponse.ok) {
+                Swal.fire({
+                    title: 'Erreur',
+                    text: 'Matricule non trouvé. Veuillez vérifier le matricule du nouveau responsable.',
+                    icon: 'error',
+                    customClass: { popup: 'animated-popup' }
+                });
+                return await handleConsultantRotation(userToken, userData); // Retry
+            }
+
+            const newCadreData = await cadreResponse.json();
+
+            // Étape 3: Formulaire complet de rotation
+            const { value: rotationData, dismiss: rotationDismiss } = await Swal.fire({
+                title: '🔐 Finalisation de la rotation',
+                html: `
+                    <div class="rotation-form">
+                        <div class="mb-3">
+                            <p><strong>Nouveau responsable:</strong> ${newCadreData.grade} ${newCadreData.nom} ${newCadreData.prenom}</p>
+                            <p><strong>Entité:</strong> ${newCadreData.entite} ${newCadreData.service || newCadreData.cours || ''}</p>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="form-label">Mot de passe actuel (sécurité):</label>
+                            <input id="current-password" type="password" class="swal2-input" placeholder="Votre mot de passe actuel">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nouveau nom d'utilisateur:</label>
+                            <input id="new-username" type="text" class="swal2-input" placeholder="Nouveau nom d'utilisateur">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nouveau mot de passe:</label>
+                            <input id="new-password" type="password" class="swal2-input" placeholder="Nouveau mot de passe">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirmer le nouveau mot de passe:</label>
+                            <input id="confirm-password" type="password" class="swal2-input" placeholder="Confirmer le mot de passe">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Effectuer la rotation',
+                customClass: {
+                    popup: 'animated-popup rotation-popup',
+                    confirmButton: 'swal-confirm-btn'
+                },
+                preConfirm: () => {
+                    const currentPassword = document.getElementById('current-password').value;
+                    const newUsername = document.getElementById('new-username').value;
+                    const newPassword = document.getElementById('new-password').value;
+                    const confirmPassword = document.getElementById('confirm-password').value;
+
+                    if (!currentPassword || !newUsername || !newPassword || !confirmPassword) {
+                        Swal.showValidationMessage('Tous les champs sont requis.');
+                        return false;
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                        Swal.showValidationMessage('Les mots de passe ne correspondent pas.');
+                        return false;
+                    }
+
+                    if (newPassword.length < 6) {
+                        Swal.showValidationMessage('Le mot de passe doit faire au moins 6 caractères.');
+                        return false;
+                    }
+
+                    if (newUsername.length < 3) {
+                        Swal.showValidationMessage('Le nom d\'utilisateur doit faire au moins 3 caractères.');
+                        return false;
+                    }
+
+                    return {
+                        currentPassword,
+                        newUsername: newUsername.trim(),
+                        newPassword,
+                        newCadreId: newCadreData.id,
+                        newMatricule: newMatricule.trim()
+                    };
+                }
+            });
+
+            if (rotationDismiss) return;
+
+            // Étape 4: Envoyer la demande de rotation au backend
+            setLoading(true);
+            const rotationResponse = await fetch(`${API_BASE_URL}api/users/rotate-consultant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    currentPassword: rotationData.currentPassword,
+                    newUsername: rotationData.newUsername,
+                    newPassword: rotationData.newPassword,
+                    newCadreId: rotationData.newCadreId,
+                    newMatricule: rotationData.newMatricule
+                })
+            });
+
+            const rotationResult = await rotationResponse.json();
+
+            if (rotationResponse.ok) {
+                await Swal.fire({
+                    title: '✅ Rotation réussie !',
+                    html: `
+                        <div class="text-center">
+                            <p><strong>Votre compte a été mis à jour avec succès.</strong></p>
+                            <p>Nouveau responsable: ${newCadreData.grade} ${newCadreData.nom} ${newCadreData.prenom}</p>
+                            <p>Nouveau nom d'utilisateur: ${rotationData.newUsername}</p>
+                            <p>Vous allez être redirigé vers le tableau de bord...</p>
+                        </div>
+                    `,
+                    icon: 'success',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    customClass: { popup: 'animated-popup' }
+                });
+
+                // Connexion automatique avec le nouveau token
+                login(rotationResult.token, rotationResult.user);
+                navigate('/');
+            } else {
+                throw new Error(rotationResult.message || 'Erreur lors de la rotation');
+            }
+
+        } catch (error) {
+            console.error('Erreur rotation consultant:', error);
+            await Swal.fire({
+                title: 'Erreur de rotation',
+                text: error.message || 'Une erreur est survenue lors de la rotation. Veuillez réessayer.',
+                icon: 'error',
+                customClass: { popup: 'animated-popup' }
+            });
+
+            // Retry la rotation
+            return await handleConsultantRotation(userToken, userData);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ✅ FONCTION UTILITAIRE - Vérifier si c'est vendredi
+    const isFridayAndRotationNeeded = (user) => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 = Dimanche, 5 = Vendredi
+
+        // Pour les tests, vous pouvez forcer à true
+        // return user.role === 'Consultant';
+
+        return dayOfWeek === 5 && user.role === 'Consultant' && user.needsWeeklyRotation;
+    };
 
     const handleMatriculePrompt = async (initialMessage, currentPassword) => {
         setLoading(true);
@@ -252,6 +439,7 @@ function LoginPage() {
         }
     };
 
+    // ✅ FONCTION HANDLESUBMIT MODIFIÉE avec vérification de rotation
     const handleSubmit = async (event) => {
         event.preventDefault();
         setError('');
@@ -301,9 +489,20 @@ function LoginPage() {
                     setError(data.message || 'Identifiants invalides.');
                 }
             } else {
-                login(data.token, data.user);
-                localStorage.removeItem('tempToken');
-                navigate('/');
+                // ✅ VÉRIFICATION DE ROTATION APRÈS LOGIN RÉUSSI
+                console.log('🔍 Vérification rotation pour:', data.user.role);
+
+                if (isFridayAndRotationNeeded(data.user)) {
+                    console.log('🔄 Rotation requise - Lancement du processus');
+                    localStorage.removeItem('tempToken');
+                    await handleConsultantRotation(data.token, data.user);
+                } else {
+                    // Login normal
+                    console.log('✅ Login normal - Pas de rotation requise');
+                    login(data.token, data.user);
+                    localStorage.removeItem('tempToken');
+                    navigate('/');
+                }
             }
         } catch (err) {
             Swal.fire({
@@ -451,7 +650,6 @@ function LoginPage() {
                                 )}
                             </button>
                         </form>
-
 
                     </div>
                 </div>
