@@ -49,6 +49,31 @@ module.exports = (sequelize) => {
         model: 'cadres',
         key: 'id'
       }
+    },
+    // ✅ NOUVEAUX CHAMPS AJOUTÉS
+    actual_updater_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      },
+      comment: 'ID de l\'utilisateur qui a effectivement fait la mise à jour (peut être différent du responsable)'
+    },
+    actual_updater_grade: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Grade de l\'utilisateur qui a effectivement fait la mise à jour'
+    },
+    is_updated_by_responsible: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      comment: 'Indique si la mise à jour a été faite par le responsable ou par un gradé de semaine'
+    },
+    commentaire: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Commentaire sur la mise à jour'
     }
   }, {
     tableName: 'mises_a_jour',
@@ -70,6 +95,11 @@ module.exports = (sequelize) => {
     MiseAJour.belongsTo(models.Cadre, {
       as: 'Cadre',
       foreignKey: 'cadre_id'
+    });
+    // ✅ NOUVELLE ASSOCIATION
+    MiseAJour.belongsTo(models.User, {
+      as: 'ActualUpdater',
+      foreignKey: 'actual_updater_id'
     });
   };
 

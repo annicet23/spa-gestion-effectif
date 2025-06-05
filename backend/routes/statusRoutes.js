@@ -120,7 +120,7 @@ router.get('/daily-updates', async (req, res) => {
     }
 });
 
-// ✅ VERSION SIMPLIFIÉE AVEC DEBUG - DOIT FONCTIONNER
+// ✅ VERSION MODIFIÉE - GET /users/:userId/submissions avec support des nouvelles données
 router.get('/users/:userId/submissions', async (req, res) => {
     console.log(`[statusRoutes] === ROUTE /users/:userId/submissions APPELÉE ===`);
     try {
@@ -139,16 +139,18 @@ router.get('/users/:userId/submissions', async (req, res) => {
         // Vérification des permissions
         const requestingUser = req.user;
         const isAdmin = requestingUser.role === 'Admin';
+        const isConsultant = requestingUser.role === 'Consultant'; // ✅ AJOUTÉ
         const isOwnData = requestingUser.id === parseInt(userId);
 
         console.log(`[statusRoutes] Vérification permissions:`);
         console.log(`  - User connecté: ${requestingUser.id} (${requestingUser.username})`);
         console.log(`  - Role: ${requestingUser.role}`);
         console.log(`  - Est Admin: ${isAdmin}`);
+        console.log(`  - Est Consultant: ${isConsultant}`); // ✅ AJOUTÉ
         console.log(`  - Est ses propres données: ${isOwnData}`);
         console.log(`  - Comparaison: ${requestingUser.id} === ${parseInt(userId)} = ${requestingUser.id === parseInt(userId)}`);
 
-        if (!isAdmin && !isOwnData) {
+        if (!isAdmin && !isConsultant && !isOwnData) { // ✅ MODIFIÉ - Ajout du consultant
             console.log(`[statusRoutes] ACCÈS REFUSÉ pour userId ${userId}`);
             return res.status(403).json({
                 message: 'Accès refusé : vous ne pouvez voir que vos propres soumissions.'
@@ -157,7 +159,7 @@ router.get('/users/:userId/submissions', async (req, res) => {
 
         console.log(`[statusRoutes] ACCÈS AUTORISÉ pour userId ${userId}`);
 
-        // ✅ REQUÊTE SIMPLE - dernières 24h
+        // ✅ REQUÊTE SIMPLE - dernières 24h avec nouvelles inclusions
         console.log(`[statusRoutes] Exécution de la requête MiseAJour.findAll...`);
 
         const submissions = await MiseAJour.findAll({
@@ -183,6 +185,20 @@ router.get('/users/:userId/submissions', async (req, res) => {
                     as: 'ValidatedBy',
                     attributes: ['id', 'username', 'nom', 'prenom'],
                     required: false
+                },
+                // ✅ AJOUT - Include pour l'utilisateur qui a réellement fait la mise à jour
+                {
+                    model: User,
+                    as: 'ActualUpdater',
+                    attributes: ['id', 'username', 'nom', 'prenom', 'grade'],
+                    required: false
+                },
+                // ✅ AJOUT - Include pour le cadre concerné
+                {
+                    model: Cadre,
+                    as: 'Cadre',
+                    attributes: ['id', 'grade', 'nom', 'prenom', 'matricule', 'service', 'fonction'],
+                    required: false
                 }
             ],
             order: [['created_at', 'DESC']]
@@ -194,7 +210,7 @@ router.get('/users/:userId/submissions', async (req, res) => {
         if (submissions.length > 0) {
             console.log(`[statusRoutes] Liste des soumissions trouvées:`);
             submissions.forEach((sub, index) => {
-                console.log(`  ${index + 1}. ID: ${sub.id}, Créé: ${sub.created_at}, Status: ${sub.status}`);
+                console.log(`  ${index + 1}. ID: ${sub.id}, Créé: ${sub.created_at}, Status: ${sub.status}, Fait par responsable: ${sub.is_updated_by_responsible}`);
             });
         } else {
             console.log(`[statusRoutes] ❌ AUCUNE SOUMISSION TROUVÉE`);
@@ -256,11 +272,10 @@ router.get('/cadres/summary', async (req, res) => {
             return res.status(404).json({ message: 'Aucune statistique trouvée pour cette date.' });
         }
 
-        return res.json(stats);
-
+        res.json(stats);
     } catch (error) {
-        console.error('Erreur récupération résumé cadres :', error);
-        return res.status(500).json({ message: 'Erreur serveur.' });
+        console.error('Erreur lors de la récupération du résumé des cadres:', error);
+        res.status(500).json({ message: 'Erreur serveur lors de la récupération du résumé des cadres.' });
     }
 });
 

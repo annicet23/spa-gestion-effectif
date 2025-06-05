@@ -110,12 +110,57 @@ async function getUserCadre(userId, logContext = '') {
   }
 }
 
+// ✅ NOUVELLE FONCTION - Récupérer les cadres disponibles pour mise à jour par consultant
+async function getAvailableCadresForConsultant(consultantUserId) {
+  try {
+    // Pour l'instant, retournons tous les cadres actifs
+    // Vous pouvez ajuster cette logique selon vos besoins métier
+    const cadres = await Cadre.findAll({
+      where: {
+        statut_absence: { [Op.or]: ['Présent', 'Absent', 'Indisponible'] }
+      },
+      attributes: ['id', 'grade', 'nom', 'prenom', 'service', 'fonction'],
+      order: [['service', 'ASC'], ['nom', 'ASC']]
+    });
+
+    return { success: true, cadres };
+  } catch (error) {
+    console.error('Erreur lors de la récupération des cadres disponibles:', error);
+    return { success: false, error: 'Erreur de base de données', cadres: [] };
+  }
+}
+
 // --- ROUTES POUR LA GESTION DES MISES À JOUR / VALIDATION ---
 
-// POST /api/mises-a-jour/submit
+// ✅ NOUVELLE ROUTE - Récupérer les cadres disponibles pour les consultants
+router.get('/available-cadres', async (req, res) => {
+  console.log('[MiseAJourRoutes] GET /available-cadres - Récupération des cadres disponibles pour mise à jour.');
+
+  // Seuls les consultants peuvent accéder à cette route
+  if (req.user.role !== 'Consultant') {
+    return res.status(403).json({ message: 'Cette route est réservée aux consultants.' });
+  }
+
+  try {
+    const result = await getAvailableCadresForConsultant(req.user.id);
+
+    if (!result.success) {
+      return res.status(500).json({ message: result.error });
+    }
+
+    console.log(`[MiseAJourRoutes] GET /available-cadres - Trouvé ${result.cadres.length} cadres disponibles.`);
+    return res.status(200).json(result.cadres);
+
+  } catch (error) {
+    console.error('[MiseAJourRoutes] GET /available-cadres - Erreur:', error);
+    return res.status(500).json({ message: 'Erreur serveur lors de la récupération des cadres.' });
+  }
+});
+
+// ✅ ROUTE MODIFIÉE - POST /api/mises-a-jour/submit
 router.post('/submit', async (req, res) => {
   console.log('[MiseAJourRoutes] POST /submit - Début de la soumission de la mise à jour.');
-  const { update_date } = req.body;
+  const { update_date, target_cadre_id, commentaire } = req.body; // ✅ Ajout de target_cadre_id et commentaire
 
   if (!update_date) {
     console.warn('[MiseAJourRoutes] POST /submit - Erreur: update_date est manquant.');
@@ -126,31 +171,68 @@ router.post('/submit', async (req, res) => {
     console.log(`[MiseAJourRoutes] POST /submit - Recherche de l'utilisateur avec cadre pour User ID: ${req.user.id}`);
 
     const userCadreResult = await getUserCadre(req.user.id, '[MiseAJourRoutes] POST /submit');
-    if (!userCadreResult.success) {
-      return res.status(403).json({ message: userCadreResult.error });
+
+    // ✅ NOUVELLE LOGIQUE - Déterminer si c'est le responsable ou un consultant
+    let cadreIdSoumetteur, actualUpdaterId, actualUpdaterGrade, isUpdatedByResponsible, targetCadre;
+
+    if (target_cadre_id && req.user.role === 'Consultant') {
+      // ✅ Un consultant fait une mise à jour pour un autre cadre
+      cadreIdSoumetteur = parseInt(target_cadre_id);
+      actualUpdaterId = req.user.id;
+      actualUpdaterGrade = req.user.grade || 'Consultant';
+      isUpdatedByResponsible = false;
+
+      // Vérifier que le cadre cible existe
+      targetCadre = await Cadre.findByPk(cadreIdSoumetteur);
+      if (!targetCadre) {
+        return res.status(404).json({ message: 'Cadre cible non trouvé.' });
+      }
+
+      console.log(`[MiseAJourRoutes] POST /submit - Consultant ${req.user.username} (${actualUpdaterGrade}) fait une mise à jour pour le cadre ${target_cadre_id} (${targetCadre.nom} ${targetCadre.prenom})`);
+    } else {
+      // ✅ Mise à jour normale par le responsable
+      if (!userCadreResult.success) {
+        return res.status(403).json({ message: userCadreResult.error });
+      }
+
+      cadreIdSoumetteur = userCadreResult.cadre.id;
+      actualUpdaterId = req.user.id;
+      actualUpdaterGrade = req.user.grade;
+      isUpdatedByResponsible = true;
+      targetCadre = userCadreResult.cadre;
+
+      console.log(`[MiseAJourRoutes] POST /submit - Mise à jour par le responsable ${req.user.username}`);
     }
 
-    const cadreIdSoumetteur = userCadreResult.cadre.id;
-    console.log(`[MiseAJourRoutes] POST /submit - Cadre Soumetteur ID: ${cadreIdSoumetteur}, Date de mise à jour: ${update_date}`);
+    // ✅ MODIFICATION - Statut automatiquement "Validée" pour les consultants non-responsables
+    const status = isUpdatedByResponsible ? 'En attente' : 'Validée';
+    const validated_by_id = isUpdatedByResponsible ? null : req.user.id;
+    const validation_date = isUpdatedByResponsible ? null : new Date();
 
     const nouvelleSoumission = await MiseAJour.create({
       submitted_by_id: req.user.id,
       update_date: update_date,
       cadre_id: cadreIdSoumetteur,
-      status: 'Validée',
-      validated_by_id: req.user.id,
-      validation_date: new Date()
+      status: status,
+      validated_by_id: validated_by_id,
+      validation_date: validation_date,
+      actual_updater_id: actualUpdaterId,
+      actual_updater_grade: actualUpdaterGrade,
+      is_updated_by_responsible: isUpdatedByResponsible,
+      commentaire: commentaire || null
     });
-    console.log(`[MiseAJourRoutes] POST /submit - Nouvelle soumission créée avec succès. ID: ${nouvelleSoumission.id}, Statut: ${nouvelleSoumission.status}`);
+
+    console.log(`[MiseAJourRoutes] POST /submit - Nouvelle soumission créée avec succès. ID: ${nouvelleSoumission.id}, Statut: ${nouvelleSoumission.status}, Fait par responsable: ${isUpdatedByResponsible}`);
 
     const soumissionAvecDetails = await MiseAJour.findByPk(nouvelleSoumission.id, {
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction', 'responsibility_scope', 'responsible_escadron_id'] }
       ]
     });
-    console.log(`[MiseAJourRoutes] POST /submit - Détails de la soumission récupérés pour ID: ${soumissionAvecDetails.id}`);
 
+    // ✅ Déclencher la mise à jour des statuts si la soumission est validée
     if (nouvelleSoumission.status === 'Validée') {
       console.log(`[MiseAJourRoutes] POST /submit - La soumission est "Validée". Déclenchement de la mise à jour des statuts des personnes.`);
       const cadreSoumetteur = soumissionAvecDetails.Cadre;
@@ -197,8 +279,8 @@ router.get('/status-for-cadre', async (req, res) => {
     let targetCadreId = cadreId;
     console.log(`[MiseAJourRoutes] GET /status-for-cadre - Date demandée: ${date}, Cadre ID fourni: ${cadreId || 'N/A'}`);
 
-    if (req.user.role !== 'Admin') {
-      console.log(`[MiseAJourRoutes] GET /status-for-cadre - Utilisateur non-Admin (Rôle: ${req.user.role}). Récupération du cadre de l'utilisateur.`);
+    if (req.user.role !== 'Admin' && req.user.role !== 'Consultant') {
+      console.log(`[MiseAJourRoutes] GET /status-for-cadre - Utilisateur non-Admin/Consultant (Rôle: ${req.user.role}). Récupération du cadre de l'utilisateur.`);
 
       const userCadreResult = await getUserCadre(req.user.id, '[MiseAJourRoutes] GET /status-for-cadre');
       if (!userCadreResult.success) {
@@ -214,8 +296,8 @@ router.get('/status-for-cadre', async (req, res) => {
       }
     } else {
       if (!targetCadreId) {
-        console.warn('[MiseAJourRoutes] GET /status-for-cadre - Erreur: Pour un administrateur, cadreId est requis si non lié à un cadre spécifique.');
-        return res.status(400).json({ message: 'Pour un administrateur, le paramètre "cadreId" est requis.' });
+        console.warn('[MiseAJourRoutes] GET /status-for-cadre - Erreur: Pour un administrateur/consultant, cadreId est requis si non lié à un cadre spécifique.');
+        return res.status(400).json({ message: 'Pour un administrateur/consultant, le paramètre "cadreId" est requis.' });
       }
     }
 
@@ -270,6 +352,7 @@ router.get('/daily-updates', async (req, res) => {
       where: whereClause,
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ],
@@ -400,6 +483,7 @@ router.get('/', async (req, res) => {
       where: whereClause,
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ],
@@ -422,6 +506,7 @@ router.get('/:id', async (req, res) => {
     const soumission = await MiseAJour.findByPk(submissionId, {
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ]
@@ -507,6 +592,7 @@ router.post('/:id/validate', isAdmin, async (req, res) => {
     const soumissionValidee = await MiseAJour.findByPk(soumission.id, {
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ]
@@ -620,6 +706,7 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
       where: { id: { [Op.in]: soumissions.map(s => s.id) } },
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username'] },
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction', 'responsibility_scope', 'responsible_escadron_id'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username'], required: false }
       ]
@@ -720,7 +807,7 @@ router.get('/users/:userId/submissions', async (req, res) => {
     return res.status(400).json({ message: 'Le paramètre "date" est requis dans la chaîne de requête.' });
   }
 
-  if (req.user.role !== 'Admin' && req.user.id !== targetUserId) {
+  if (req.user.role !== 'Admin' && req.user.role !== 'Consultant' && req.user.id !== targetUserId) { // ✅ AJOUTÉ CONSULTANT
     console.warn(`[MiseAJourRoutes] GET /users/:userId/submissions - Utilisateur ${req.user.username} (ID: ${req.user.id}, Rôle: ${req.user.role}) a tenté d'accéder aux soumissions de l'utilisateur ${targetUserId} sans permission.`);
     return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à voir les soumissions de cet utilisateur.' });
   }
@@ -751,6 +838,12 @@ router.get('/users/:userId/submissions', async (req, res) => {
               required: false
             }
           ]
+        },
+        {
+          model: User,
+          as: 'ActualUpdater', // ✅ AJOUTÉ
+          attributes: ['id', 'username', 'nom', 'prenom', 'grade'],
+          required: false
         },
         {
           model: User,

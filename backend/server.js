@@ -54,7 +54,7 @@ const app = express();
 const server = http.createServer(app);
 
 // ✅ CONFIGURATION URL DYNAMIQUE BASÉE SUR VOTRE .env.local
-const API_HOST = process.env.API_HOST || '192.168.241.123';
+const API_HOST = process.env.API_HOST || '10.106.61.73';
 const API_PORT = process.env.PORT || 3000;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 5173;
 

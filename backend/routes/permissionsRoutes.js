@@ -1,5 +1,5 @@
 // routes/permissionsRoutes.js
-console.log("DEBUG_VERIFICATION_DEBUT: Fichier permissionsRoutes.js chargé. Version: 2025-05-24_V6 (Total Jours Pris + Nombre Permissions)");
+console.log("DEBUG_VERIFICATION_DEBUT: Fichier permissionsRoutes.js chargé. Version: 2025-01-21_SIMPLIFIE (Suppression droits annuels)");
 const express = require('express');
 const router = express.Router();
 
@@ -15,12 +15,12 @@ const calculateDaysInclusive = (startDate, endDate) => {
     start.setHours(0, 0, 0, 0);
     end.setHours(0, 0, 0, 0);
 
-    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffTime = Math.abs(end.getTime() - start.getTime())+1;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return diffDays;
 };
 
-// --- NOUVELLE ROUTE : GET /api/permissions/ (pour l'affichage de toutes les permissions) ---
+// --- ROUTE : GET /api/permissions/ (pour l'affichage de toutes les permissions) ---
 router.get('/', authenticateJWT, isAdmin, async (req, res) => {
     try {
         const { dateDepart, dateFin, cadreId, nomCadre, matriculeCadre, service, escadronId } = req.query;
@@ -68,7 +68,7 @@ router.get('/', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
-// --- Route 1: GET /api/permissions/active/:cadreId ---
+// --- Route : GET /api/permissions/active/:cadreId ---
 router.get('/active/:cadreId', authenticateJWT, isStandard, async (req, res) => {
     const { cadreId } = req.params;
     const today = new Date();
@@ -95,21 +95,20 @@ router.get('/active/:cadreId', authenticateJWT, isStandard, async (req, res) => 
     }
 });
 
-// --- Route 2: GET /api/permissions/cadre-summary/:cadreId ---
+// --- Route SIMPLIFIÉE : GET /api/permissions/cadre-summary/:cadreId ---
+// Suppression de la logique des droits annuels
 router.get('/cadre-summary/:cadreId', authenticateJWT, isStandard, async (req, res) => {
     const { cadreId } = req.params;
     const currentYear = new Date().getFullYear();
 
     try {
         const cadre = await Cadre.findByPk(cadreId, {
-            attributes: ['droit_annuel_perm']
+            attributes: ['id', 'nom', 'prenom', 'matricule']
         });
 
         if (!cadre) {
             return res.status(404).json({ message: "Cadre not found." });
         }
-
-        const droitAnnuelDefault = cadre.droit_annuel_perm || 0;
 
         const yearStart = new Date(`${currentYear}-01-01`);
         const yearEnd = new Date(`${currentYear}-12-31`);
@@ -147,9 +146,15 @@ router.get('/cadre-summary/:cadreId', authenticateJWT, isStandard, async (req, r
             }
         });
 
+        // SIMPLIFICATION : Plus de notion de droits annuels
         res.json({
-            droitAnnuel: droitAnnuelDefault,
-            totalJoursPrisAnnee: totalJoursPrisAnnee
+            cadre: {
+                nom: cadre.nom,
+                prenom: cadre.prenom,
+                matricule: cadre.matricule
+            },
+            totalJoursPrisAnnee: totalJoursPrisAnnee,
+            nombrePermissions: permissionsForYear.length
         });
 
     } catch (error) {
@@ -158,8 +163,7 @@ router.get('/cadre-summary/:cadreId', authenticateJWT, isStandard, async (req, r
     }
 });
 
-// --- Nouvelle Route : GET /api/permissions/summary-by-cadre ---
-// Affiche le nombre total de jours de permissions pris et le nombre d'insertions par cadre pour l'année en cours.
+// --- Route : GET /api/permissions/summary-by-cadre ---
 router.get('/summary-by-cadre', authenticateJWT, isAdmin, async (req, res) => {
     try {
         const currentYear = new Date().getFullYear();
@@ -169,9 +173,7 @@ router.get('/summary-by-cadre', authenticateJWT, isAdmin, async (req, res) => {
         const permissionSummary = await Permission.findAll({
             attributes: [
                 'cadre_id',
-                // Ceci va renvoyer le total des jours de permission pour l'année
                 [Sequelize.fn('SUM', Sequelize.col('joursPrisPerm')), 'totalJoursPermissionAnnee'],
-                // Ceci va renvoyer le nombre total d'insertions (permissions)
                 [Sequelize.fn('COUNT', Sequelize.col('Permission.id')), 'nombrePermissions']
             ],
             where: {
@@ -202,7 +204,7 @@ router.get('/summary-by-cadre', authenticateJWT, isAdmin, async (req, res) => {
     }
 });
 
-// --- NOUVELLE ROUTE : GET /api/permissions/details-by-cadre/:cadreId ---
+// --- Route : GET /api/permissions/details-by-cadre/:cadreId ---
 router.get('/details-by-cadre/:cadreId', authenticateJWT, isAdmin, async (req, res) => {
     const { cadreId } = req.params;
     const currentYear = new Date().getFullYear();
@@ -238,6 +240,8 @@ router.get('/details-by-cadre/:cadreId', authenticateJWT, isAdmin, async (req, r
             dateDepartPerm: perm.dateDepartPerm,
             dateArriveePerm: perm.dateArriveePerm,
             joursPrisPerm: perm.joursPrisPerm,
+            referenceMessageDepart: perm.referenceMessageDepart,
+            referenceMessageArrivee: perm.referenceMessageArrivee
         }));
 
         res.json({
@@ -251,8 +255,7 @@ router.get('/details-by-cadre/:cadreId', authenticateJWT, isAdmin, async (req, r
     }
 });
 
-
-// --- NOUVELLE ROUTE : POST /api/permissions/:id/arrivee ---
+// --- Route : POST /api/permissions/:id/arrivee ---
 router.post('/:id/arrivee', authenticateJWT, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { referenceMessageArrivee } = req.body;
