@@ -54,9 +54,9 @@ const app = express();
 const server = http.createServer(app);
 
 // ✅ CONFIGURATION URL DYNAMIQUE BASÉE SUR VOTRE .env.local
-const API_HOST = process.env.API_HOST || '10.106.61.73';
-const API_PORT = process.env.PORT || 3000;
-const FRONTEND_PORT = process.env.FRONTEND_PORT || 5173;
+const API_HOST = process.env.API_HOST ;
+const API_PORT = process.env.PORT ;
+const FRONTEND_PORT = process.env.FRONTEND_PORT ;
 
 // ✅ CONFIGURATION EXACTE BASÉE SUR VOTRE VITE_API_BASE_URL
 const FRONTEND_URL = `http://${API_HOST}:${FRONTEND_PORT}`;
@@ -816,7 +816,7 @@ io.on('connection', (socket) => {
         console.log("Heure Node.js avant sync:", new Date().toString());
 
         // ⚠️ IMPORTANT - Changez alter: true en false pour éviter les problèmes d'index
-        await db.sequelize.sync({ logging: console.log }); // ✅ Logging activé pour debug
+        //await db.sequelize.sync({ logging: console.log }); // ✅ Logging activé pour debug
         console.log('Base de données synchronisée.');
 
         // ✅ AJOUT - Vérification après sync
@@ -836,13 +836,7 @@ io.on('connection', (socket) => {
         const host = '0.0.0.0';
         const PORT = process.env.PORT || 3000;
 
-        // ===== AFFICHAGE DES INFORMATIONS DE DEBUG AU DÉMARRAGE =====
-        console.log('\n=== CONFIGURATION SERVEUR ===');
-        console.log(`📁 Dossier bibliothèque: ${UPLOAD_DIR_LIBRARY}`);
-        console.log(`📁 Dossier chat: ${UPLOAD_DIR_CHAT}`);
-        console.log(`📁 Dossier temp: ${TEMP_UPLOAD_DIR}`);
-        console.log(`🌐 Frontend URL: ${FRONTEND_URL}`);
-        console.log(`🔧 API Base URL: ${API_BASE_URL}`);
+
 
         // Vérifier les dossiers
         [UPLOAD_DIR_LIBRARY, UPLOAD_DIR_CHAT, TEMP_UPLOAD_DIR].forEach(dir => {
