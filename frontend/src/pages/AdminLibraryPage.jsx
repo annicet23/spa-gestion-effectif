@@ -9,7 +9,7 @@ import '../components/LibraryPage.css';
 
 // Définition des catégories et types (inchangés)
 const allCategories = [
-    'Français', 'Anglais', 'Roman', 'Bande Dessinée', 'Journal', 'Revue',
+    'Français', 'Anglais', 'Roman', 'Bande Dessinée', 'Journal', 'Revue','Littérature'
     'Actualités', 'Management', 'Développement Web', 'Informatique', 'Sciences',
     'Sciences Économiques', 'Littérature', 'Environnement', 'Design',
     'Cybersécurité', 'Histoire', 'Musique', 'Art', 'Santé', 'Voyage', 'Sport',

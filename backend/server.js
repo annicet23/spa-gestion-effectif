@@ -659,9 +659,17 @@ app.get('/api/chat/unread-status', async (req, res) => {
 // --- FIN NOUVELLE ROUTE POUR LES STATUTS ---
 
 // Route de base pour tester si le serveur fonctionne
+app.use(express.static(path.join(__dirname,'../frontend/dist')));
+app.get("*",(req,res)=> {
+    res.sendFile(path.join(__dirname,'../frontend/dist/index.html'));
+});
 app.get('/', (req, res) => {
     res.send('API backend pour la gestion des effectifs des cadres.');
 });
+
+
+
+//vita eto
 
 // --- ✅ GESTION COMPLÈTE DES CONNEXIONS SOCKET.IO ET MESSAGES ---
 io.on('connection', (socket) => {
