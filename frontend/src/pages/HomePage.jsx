@@ -1017,7 +1017,7 @@ function HomePage() {
                                         </svg>
                                         <h5 className="card-title">Présent (P)</h5>
                                         <p className="card-text fs-3">{cadreStats.present ?? 0}</p>
-                                        <small className="text-muted">R - A = {cadreStats.total} - {cadreStats.absent}</small>
+
                                     </div>
                                 </div>
                             </div>
@@ -1047,7 +1047,7 @@ function HomePage() {
                                         </svg>
                                         <h5 className="card-title">Sur le rang (S)</h5>
                                         <p className="card-text fs-3">{cadreStats.surLeRang ?? 0}</p>
-                                        <small className="text-muted">P - I = {cadreStats.present} - {cadreStats.indisponible}</small>
+
                                     </div>
                                 </div>
                             </div>

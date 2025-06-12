@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Button, Spinner, Alert } from 'react-bootstrap';
+import { Button, Spinner, Alert, Form } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import CreateUserModal from '../components/CreateUserModal';
@@ -16,6 +16,9 @@ function ComptesListPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [userToEdit, setUserToEdit] = useState(null);
+
+  // 🆕 NOUVEAU STATE POUR FILTRER LES COMPTES DÉSACTIVÉS
+  const [showInactiveUsers, setShowInactiveUsers] = useState(false);
 
   const handleShowCreateModal = () => setShowCreateModal(true);
   const handleCloseCreateModal = () => setShowCreateModal(false);
@@ -34,7 +37,18 @@ function ComptesListPage() {
     fetchUsers();
   };
 
-  // ✅ FONCTION FETCHUSERS CORRIGÉE
+  // 🆕 FONCTION POUR FILTRER LES UTILISATEURS
+  const getFilteredUsers = () => {
+    if (showInactiveUsers) {
+      // Montrer tous les utilisateurs (actifs + inactifs)
+      return users;
+    } else {
+      // Cacher les comptes désactivés (montrer seulement les actifs)
+      return users.filter(userData => userData.status === 'Active');
+    }
+  };
+
+  // ✅ FONCTION FETCHUSERS IDENTIQUE
   const fetchUsers = async () => {
     setLoading(true);
     setError(null);
@@ -48,7 +62,6 @@ function ComptesListPage() {
         return;
       }
 
-      // ✅ LOGS POUR DÉBUGGER
       console.log('🔍 Récupération des utilisateurs...');
       console.log('🔍 API URL:', `${API_BASE_URL}api/users`);
       console.log('🔍 Token présent:', !!token);
@@ -92,9 +105,8 @@ function ComptesListPage() {
     }
   };
 
-  // ✅ FONCTION DÉSACTIVATION AMÉLIORÉE
+  // ✅ FONCTION DÉSACTIVATION IDENTIQUE
   const handleDeactivateUser = async (userId, userToDeactivate) => {
-    // Empêcher la désactivation de son propre compte
     if (user && user.id === userId) {
       Swal.fire({
         title: 'Action impossible',
@@ -104,7 +116,6 @@ function ComptesListPage() {
       return;
     }
 
-    // Vérifier si l'utilisateur est déjà désactivé
     if (userToDeactivate.status === 'Inactive') {
       Swal.fire({
         title: 'Information',
@@ -167,10 +178,8 @@ function ComptesListPage() {
 
           console.log('[FRONTEND] Réponse de désactivation:', response.data);
 
-          // Actualiser la liste
           await fetchUsers();
 
-          // Message de succès
           swalWithBootstrapButtons.fire({
             title: 'Désactivé !',
             html: `
@@ -208,7 +217,7 @@ function ComptesListPage() {
     });
   };
 
-  // ✅ FONCTION RÉACTIVATION AMÉLIORÉE
+  // ✅ FONCTION RÉACTIVATION IDENTIQUE
   const handleReactivateUser = async (userId, userToReactivate) => {
     const swalWithBootstrapButtons = Swal.mixin({
       customClass: {
@@ -256,7 +265,6 @@ function ComptesListPage() {
 
           console.log('[FRONTEND] Réponse de réactivation:', response.data);
 
-          // Actualiser la liste
           await fetchUsers();
 
           swalWithBootstrapButtons.fire(
@@ -285,7 +293,7 @@ function ComptesListPage() {
     });
   };
 
-  // ✅ USEEFFECT CORRIGÉ
+  // ✅ USEEFFECT IDENTIQUE
   useEffect(() => {
     console.log('🔄 ComptesListPage - useEffect:', { authLoading, user: user?.role });
 
@@ -299,7 +307,7 @@ function ComptesListPage() {
     }
   }, [authLoading, user]);
 
-  // ✅ VÉRIFICATION DES PERMISSIONS EN AMONT
+  // ✅ VÉRIFICATION DES PERMISSIONS IDENTIQUE
   if (authLoading) {
     return (
       <div className="container mt-4">
@@ -327,6 +335,9 @@ function ComptesListPage() {
     );
   }
 
+  // 🆕 UTILISER LES UTILISATEURS FILTRÉS
+  const filteredUsers = getFilteredUsers();
+
   return (
     <div className="container mt-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -344,21 +355,62 @@ function ComptesListPage() {
         </Button>
       </div>
 
-      {/* ✅ Statistiques rapides */}
+      {/* 🆕 NOUVEAU : FILTRE POUR AFFICHER/CACHER LES COMPTES DÉSACTIVÉS */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="row align-items-center">
+            <div className="col-md-8">
+              <h6 className="card-title mb-2">
+                <i className="bi bi-funnel me-2"></i>
+                Options d'affichage
+              </h6>
+              <Form.Check
+                type="switch"
+                id="show-inactive-switch"
+                label={
+                  <span>
+                    <i className="bi bi-eye me-1"></i>
+                    Afficher les comptes désactivés
+                    <small className="text-muted ms-2">
+                      ({users.filter(u => u.status === 'Inactive').length} compte(s) désactivé(s))
+                    </small>
+                  </span>
+                }
+                checked={showInactiveUsers}
+                onChange={(e) => setShowInactiveUsers(e.target.checked)}
+              />
+            </div>
+            <div className="col-md-4 text-end">
+              <small className="text-muted">
+                <strong>Affichés :</strong> {filteredUsers.length} / {users.length} comptes
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Statistiques rapides - MISES À JOUR AVEC LES FILTRES */}
       {users.length > 0 && (
         <div className="row mb-3">
           <div className="col-md-3">
             <div className="card bg-primary text-white">
               <div className="card-body">
-                <h5 className="card-title">Total</h5>
-                <h3>{users.length}</h3>
+                <h5 className="card-title">
+                  <i className="bi bi-list-ul me-1"></i>
+                  Affichés
+                </h5>
+                <h3>{filteredUsers.length}</h3>
+                <small>sur {users.length} total</small>
               </div>
             </div>
           </div>
           <div className="col-md-3">
             <div className="card bg-success text-white">
               <div className="card-body">
-                <h5 className="card-title">Actifs</h5>
+                <h5 className="card-title">
+                  <i className="bi bi-check-circle me-1"></i>
+                  Actifs
+                </h5>
                 <h3>{users.filter(u => u.status === 'Active').length}</h3>
               </div>
             </div>
@@ -366,20 +418,45 @@ function ComptesListPage() {
           <div className="col-md-3">
             <div className="card bg-secondary text-white">
               <div className="card-body">
-                <h5 className="card-title">Inactifs</h5>
+                <h5 className="card-title">
+                  <i className="bi bi-pause-circle me-1"></i>
+                  Inactifs
+                </h5>
                 <h3>{users.filter(u => u.status === 'Inactive').length}</h3>
+                <small>{showInactiveUsers ? 'Visibles' : 'Cachés'}</small>
               </div>
             </div>
           </div>
           <div className="col-md-3">
             <div className="card bg-info text-white">
               <div className="card-body">
-                <h5 className="card-title">Admins</h5>
+                <h5 className="card-title">
+                  <i className="bi bi-shield me-1"></i>
+                  Admins
+                </h5>
                 <h3>{users.filter(u => u.role === 'Admin').length}</h3>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🆕 ALERTE INFORMATIVE QUAND LES COMPTES INACTIFS SONT CACHÉS */}
+      {!showInactiveUsers && users.filter(u => u.status === 'Inactive').length > 0 && (
+        <Alert variant="info" className="d-flex align-items-center">
+          <i className="bi bi-info-circle me-2"></i>
+          <div>
+            <strong>Information :</strong> {users.filter(u => u.status === 'Inactive').length} compte(s) désactivé(s)
+            sont actuellement cachés.
+            <Button
+              variant="link"
+              className="p-0 ms-1"
+              onClick={() => setShowInactiveUsers(true)}
+            >
+              Cliquez ici pour les afficher
+            </Button>
+          </div>
+        </Alert>
       )}
 
       {/* ✅ Légende des statuts */}
@@ -390,10 +467,12 @@ function ComptesListPage() {
             <i className="bi bi-check-circle me-1"></i>
             Active
           </span>
-          <span className="badge bg-secondary ms-2">
-            <i className="bi bi-pause-circle me-1"></i>
-            Inactive
-          </span>
+          {showInactiveUsers && (
+            <span className="badge bg-secondary ms-2">
+              <i className="bi bi-pause-circle me-1"></i>
+              Inactive
+            </span>
+          )}
         </small>
       </div>
 
@@ -413,8 +492,8 @@ function ComptesListPage() {
         </Alert>
       )}
 
-      {/* ✅ Tableau des utilisateurs */}
-      {!loading && !error && users.length > 0 && (
+      {/* ✅ Tableau des utilisateurs - UTILISE filteredUsers AU LIEU DE users */}
+      {!loading && !error && filteredUsers.length > 0 && (
         <div className="table-responsive">
           <table className="table table-striped table-hover">
             <thead className="table-dark">
@@ -446,7 +525,7 @@ function ComptesListPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((userData) => (
+              {filteredUsers.map((userData) => (
                 <tr
                   key={userData.id}
                   className={userData.status === 'Inactive' ? 'table-secondary' : ''}
@@ -552,14 +631,33 @@ function ComptesListPage() {
         </div>
       )}
 
-      {/* ✅ Message si aucun utilisateur */}
-      {!loading && !error && users.length === 0 && (
+      {/* ✅ Message si aucun utilisateur - ADAPTÉ AUX FILTRES */}
+      {!loading && !error && filteredUsers.length === 0 && users.length === 0 && (
         <Alert variant="info">
           <i className="bi bi-info-circle me-2"></i>
           <strong>Aucun utilisateur trouvé.</strong>
           <p className="mb-0 mt-2">
             Cliquez sur "Créer un nouveau compte" pour ajouter le premier utilisateur.
           </p>
+        </Alert>
+      )}
+
+      {/* 🆕 Message spécial quand tous les comptes visibles sont cachés par le filtre */}
+      {!loading && !error && filteredUsers.length === 0 && users.length > 0 && (
+        <Alert variant="warning">
+          <i className="bi bi-filter me-2"></i>
+          <strong>Aucun compte visible avec les filtres actuels.</strong>
+          <p className="mb-2 mt-2">
+            Tous les comptes ({users.length}) sont actuellement cachés par les filtres.
+          </p>
+          <Button
+            variant="outline-primary"
+            size="sm"
+            onClick={() => setShowInactiveUsers(true)}
+          >
+            <i className="bi bi-eye me-1"></i>
+            Afficher tous les comptes
+          </Button>
         </Alert>
       )}
 

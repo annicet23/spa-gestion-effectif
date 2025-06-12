@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Tree from 'react-d3-tree';
-import { FaUserCircle, FaChevronDown, FaChevronUp, FaEdit, FaPlus, FaTrash, FaSearch, FaDownload, FaExpand, FaSave, FaFilePdf, FaFileWord, FaTimes, FaCompress, FaSpinner } from 'react-icons/fa';
+import { FaUserCircle, FaChevronDown, FaChevronUp, FaEdit, FaPlus, FaTrash, FaSearch, FaDownload, FaExpand, FaSave, FaFilePdf, FaFileWord, FaTimes, FaCompress, FaSpinner, FaBuilding, FaUsers, FaUserTie } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../data/OrgChartPage.css';
 
@@ -10,12 +10,43 @@ import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, ImageRun } from 'docx';
 
 // ✅ Configuration API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// ✅ Hiérarchie des grades militaires
+const GRADES_HIERARCHY = {
+  'Officiers Généraux': ['Général de Division', 'Général de Brigade'],
+  'Officiers Supérieurs': ['Colonel', 'Lieutenant-Colonel', 'Commandant'],
+  'Officiers Subalternes': ['Capitaine', 'Lieutenant', 'Sous-Lieutenant'],
+  'Sous-Officiers': ['Adjudant-Chef', 'Adjudant', 'Sergent-Chef', 'Sergent'],
+  'Militaires du Rang': ['Caporal-Chef', 'Caporal', 'Gendarme']
+};
 
-// ✅ Configuration des couleurs par escadron
+// ✅ Services et Directions disponibles
+const DIRECTIONS_SERVICES = {
+  'Direction de la Formation': [
+    'Service Pédagogique',
+    'Service des Stages',
+    'Service de l\'Évaluation',
+    'Service Technique'
+  ],
+  'Direction Administrative': [
+    'Service Ressources Humaines',
+    'Service Financier',
+    'Service Logistique',
+    'Service Juridique'
+  ],
+  'Direction Opérationnelle': [
+    'Service Sécurité',
+    'Service Intervention',
+    'Service Investigation',
+    'Service Prévention'
+  ]
+};
+
+// ✅ Configuration des couleurs par type
 const customColors = {
-  'Ecole': { primary: '#bdc3c7', nameText: '#7f8c8d', photoBorder: '#bdc3c7' },
+  'Direction': { primary: '#2c3e50', nameText: '#ecf0f1', photoBorder: '#2c3e50' },
+  'Service': { primary: '#34495e', nameText: '#ecf0f1', photoBorder: '#34495e' },
   'Escadron 1': { primary: 'url(#redGradient)', nameText: '#c0392b', photoBorder: 'url(#redGradient)' },
   'Peloton 1': { primary: '#e74c3c', nameText: '#c0392b', photoBorder: '#e74c3c' },
   'Escadron 3': { primary: '#2ecc71', nameText: '#27ae60', photoBorder: '#2ecc71' },
@@ -57,6 +88,23 @@ const svgDefs = (
   </defs>
 );
 
+// ✅ Hook personnalisé pour le debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 export default function OrgChartPage() {
   // ✅ États de gestion principal
   const [treeData, setTreeData] = useState(null);
@@ -75,13 +123,24 @@ export default function OrgChartPage() {
   const [selectedCadre, setSelectedCadre] = useState(null);
   const [searchingPersonnel, setSearchingPersonnel] = useState(false);
 
-  // ✅ Formulaire simplifié
+  // ✅ NOUVEAUX ÉTATS pour la sélection structurelle
+  const [selectedDirection, setSelectedDirection] = useState('');
+  const [selectedService, setSelectedService] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedGradeCategory, setSelectedGradeCategory] = useState('');
+  const [addingStructuralNode, setAddingStructuralNode] = useState(false);
+
+  // ✅ Formulaire étendu
   const [formData, setFormData] = useState({
-    fonction: ''
+    fonction: '',
+    type: 'Personne' // 'Direction', 'Service', 'Escadron', 'Peloton', 'Personne'
   });
 
   const treeRef = useRef(null);
   const orgChartRef = useRef(null);
+
+  // ✅ Debounce pour la recherche
+  const debouncedPersonnelSearch = useDebounce(personnelSearch, 300);
 
   // ✅ Chargement initial de l'organigramme
   useEffect(() => {
@@ -126,6 +185,8 @@ export default function OrgChartPage() {
       if (parentNode) {
         if (parentNode.attributes?.type === 'Service') {
           filterParams = `&service=${encodeURIComponent(parentNode.name)}`;
+        } else if (parentNode.attributes?.type === 'Direction') {
+          filterParams = `&direction=${encodeURIComponent(parentNode.name)}`;
         } else if (parentNode.attributes?.type === 'Escadron') {
           filterParams = `&escadronNumero=${parentNode.attributes?.numero}`;
         } else if (parentNode.attributes?.type === 'Peloton') {
@@ -158,16 +219,12 @@ export default function OrgChartPage() {
 
   // ✅ Gestionnaire de recherche avec debounce
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (personnelSearch && selectedNode) {
-        searchPersonnel(personnelSearch, selectedNode);
-      }
-    }, 300);
+    if (debouncedPersonnelSearch && selectedNode && formData.type === 'Personne') {
+      searchPersonnel(debouncedPersonnelSearch, selectedNode);
+    }
+  }, [debouncedPersonnelSearch, selectedNode, formData.type]);
 
-    return () => clearTimeout(timeoutId);
-  }, [personnelSearch, selectedNode]);
-
-  // ✅ Fonction de rendu personnalisé des nœuds
+  // ✅ Fonction de rendu personnalisé des nœuds avec bouton de recherche
   const renderCustomNodeElement = useCallback(({ nodeDatum, toggleNode }) => {
     if (!nodeDatum) return null;
 
@@ -175,10 +232,12 @@ export default function OrgChartPage() {
     const isCollapsed = nodeDatum.__rd3t && nodeDatum.__rd3t.collapsed;
     const isHighlighted = highlightedNodes.includes(nodeDatum.name);
 
-    // Détermination des couleurs
+    // Détermination des couleurs selon le type
     let colorKey = 'default';
-    if (nodeDatum.attributes?.type === 'Ecole') {
-      colorKey = 'Ecole';
+    if (nodeDatum.attributes?.type === 'Direction') {
+      colorKey = 'Direction';
+    } else if (nodeDatum.attributes?.type === 'Service') {
+      colorKey = 'Service';
     } else if (nodeDatum.attributes?.type === 'Escadron' && nodeDatum.attributes?.numero !== undefined) {
       colorKey = `Escadron ${nodeDatum.attributes.numero}`;
     } else if (nodeDatum.attributes?.type === 'Peloton' && nodeDatum.attributes?.escadronNumero !== undefined) {
@@ -188,8 +247,8 @@ export default function OrgChartPage() {
     const colors = customColors[colorKey] || customColors.default;
 
     // Dimensions des nœuds
-    const nodeWidth = 300;
-    const nodeHeight = 220;
+    const nodeWidth = 320;
+    const nodeHeight = 240;
     const photoSize = 70;
     const photoBorderWidth = 4;
 
@@ -221,21 +280,35 @@ export default function OrgChartPage() {
           y={rectY}
           rx={10}
           ry={10}
-          fill={isHighlighted ? "#fff3cd" : "#ffffff"}
+          fill={isHighlighted ? "#fff3cd" : (nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? colors.primary : "#ffffff")}
           stroke={isHighlighted ? "#ffc107" : "#dddddd"}
           strokeWidth={isHighlighted ? "3" : "1"}
           filter="url(#nodeDropShadow)"
         />
 
-        {/* ✅ Boutons d'édition en mode édition */}
+        {/* ✅ NOUVEAUX BOUTONS - Recherche directe sur le nœud */}
         {editMode && !isExporting && (
           <g>
-            {/* Bouton Ajouter enfant - Seulement pour les nœuds structurels */}
+            {/* Bouton Recherche directe sur ce nœud */}
+            <g
+              onClick={() => handleDirectSearch(nodeDatum)}
+              style={{ cursor: 'pointer' }}
+              transform={`translate(${rectX + 10}, ${rectY + 10})`}
+            >
+              <rect width="30" height="25" rx="3" fill="#17a2b8" />
+              <foreignObject x="0" y="0" width="30" height="25">
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'white' }}>
+                  <FaSearch size={12} />
+                </div>
+              </foreignObject>
+            </g>
+
+            {/* Bouton Ajouter enfant */}
             {nodeDatum.attributes?.type !== 'Personne' && (
               <g
                 onClick={() => handleAddChild(nodeDatum)}
                 style={{ cursor: 'pointer' }}
-                transform={`translate(${rectX + nodeWidth - 40}, ${rectY + 10})`}
+                transform={`translate(${rectX + nodeWidth - 70}, ${rectY + 10})`}
               >
                 <rect width="25" height="25" rx="3" fill="#007bff" />
                 <foreignObject x="0" y="0" width="25" height="25">
@@ -247,11 +320,11 @@ export default function OrgChartPage() {
             )}
 
             {/* Bouton Supprimer */}
-            {nodeDatum.attributes?.type !== 'Ecole' && (
+            {nodeDatum.attributes?.type !== 'Direction' && (
               <g
                 onClick={() => handleDeleteNode(nodeDatum)}
                 style={{ cursor: 'pointer' }}
-                transform={`translate(${rectX + nodeWidth - 10}, ${rectY + 10})`}
+                transform={`translate(${rectX + nodeWidth - 40}, ${rectY + 10})`}
               >
                 <rect width="25" height="25" rx="3" fill="#dc3545" />
                 <foreignObject x="0" y="0" width="25" height="25">
@@ -274,7 +347,7 @@ export default function OrgChartPage() {
           strokeWidth={photoBorderWidth}
         />
 
-        {/* Photo de profil */}
+        {/* Photo de profil ou icône selon le type */}
         <foreignObject x={photoX} y={photoY} width={photoSize} height={photoSize}>
           <div style={{
             display: 'flex',
@@ -284,7 +357,7 @@ export default function OrgChartPage() {
             height: '100%',
             borderRadius: '50%',
             overflow: 'hidden',
-            backgroundColor: '#e9ecef',
+            backgroundColor: nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? colors.primary : '#e9ecef',
             boxSizing: 'border-box',
           }}>
             {nodeDatum.attributes?.imageUrl ? (
@@ -298,6 +371,12 @@ export default function OrgChartPage() {
                   borderRadius: '50%'
                 }}
               />
+            ) : nodeDatum.attributes?.type === 'Direction' ? (
+              <FaBuilding style={{ color: '#ffffff', fontSize: photoSize * 0.6 + 'px' }} />
+            ) : nodeDatum.attributes?.type === 'Service' ? (
+              <FaUsers style={{ color: '#ffffff', fontSize: photoSize * 0.6 + 'px' }} />
+            ) : nodeDatum.attributes?.type === 'Escadron' || nodeDatum.attributes?.type === 'Peloton' ? (
+              <FaUserTie style={{ color: '#6c757d', fontSize: photoSize * 0.6 + 'px' }} />
             ) : (
               <FaUserCircle style={{ color: '#6c757d', fontSize: photoSize * 0.7 + 'px' }} />
             )}
@@ -308,7 +387,7 @@ export default function OrgChartPage() {
         <foreignObject x={textBlockX} y={textBlockY} width={textBlockWidth} height={textBlockHeight}>
           <div style={{
             fontFamily: 'Arial, sans-serif',
-            color: '#212529',
+            color: nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? '#ffffff' : '#212529',
             fontSize: '14px',
             lineHeight: '1.3',
             overflow: 'hidden',
@@ -325,7 +404,7 @@ export default function OrgChartPage() {
             <div style={{
               fontSize: '16px',
               fontWeight: 'bold',
-              color: colors.nameText,
+              color: nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? '#ffffff' : colors.nameText,
               marginBottom: '3px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -335,11 +414,25 @@ export default function OrgChartPage() {
               {nodeDatum.name || 'Nom non défini'}
             </div>
 
+            {/* Type de structure */}
+            {(nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service') && (
+              <div style={{
+                fontSize: '12px',
+                color: '#ffffff',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                marginBottom: '3px'
+              }}>
+                {nodeDatum.attributes.type}
+              </div>
+            )}
+
             {/* Grade */}
             {nodeDatum.attributes?.grade && (
               <div style={{
                 fontSize: '13px',
-                color: '#6c757d',
+                color: nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? '#ffffff' : '#6c757d',
                 marginBottom: '3px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -353,7 +446,7 @@ export default function OrgChartPage() {
             {nodeDatum.attributes?.poste && (
               <div style={{
                 fontSize: '12px',
-                color: '#495057',
+                color: nodeDatum.attributes?.type === 'Direction' || nodeDatum.attributes?.type === 'Service' ? '#ffffff' : '#495057',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
@@ -406,15 +499,39 @@ export default function OrgChartPage() {
     );
   }, [editMode, highlightedNodes, isExporting]);
 
-  // ✅ Gestionnaires d'événements
-  const handleAddChild = (parentNode) => {
-    setSelectedNode(parentNode);
+  // ✅ NOUVEAU - Gestionnaire de recherche directe sur un nœud
+  const handleDirectSearch = (nodeDatum) => {
+    setSelectedNode(nodeDatum);
     setFormData({
-      fonction: ''
+      fonction: '',
+      type: 'Personne' // Par défaut rechercher une personne
     });
     setPersonnelSearch('');
     setAvailablePersonnel([]);
     setSelectedCadre(null);
+    setSelectedDirection('');
+    setSelectedService('');
+    setSelectedGrade('');
+    setSelectedGradeCategory('');
+    setAddingStructuralNode(false);
+    setShowAddModal(true);
+  };
+
+  // ✅ Gestionnaires d'événements améliorés
+  const handleAddChild = (parentNode) => {
+    setSelectedNode(parentNode);
+    setFormData({
+      fonction: '',
+      type: 'Personne' // Par défaut
+    });
+    setPersonnelSearch('');
+    setAvailablePersonnel([]);
+    setSelectedCadre(null);
+    setSelectedDirection('');
+    setSelectedService('');
+    setSelectedGrade('');
+    setSelectedGradeCategory('');
+    setAddingStructuralNode(false);
     setShowAddModal(true);
   };
 
@@ -437,7 +554,6 @@ export default function OrgChartPage() {
           throw new Error('Erreur lors de la suppression');
         }
 
-        // Recharger l'organigramme
         await fetchOrgChart();
         alert('Nœud supprimé avec succès');
       } catch (error) {
@@ -450,7 +566,56 @@ export default function OrgChartPage() {
   const handleSelectCadre = (cadre) => {
     setSelectedCadre(cadre);
     setPersonnelSearch(`${cadre.grade} ${cadre.prenom} ${cadre.nom}`);
+    setSelectedGrade(cadre.grade);
     setAvailablePersonnel([]);
+  };
+
+  // ✅ NOUVEAU - Gestionnaire pour l'ajout de nœuds structurels
+  const handleAddStructuralNode = async () => {
+    let nodeName = '';
+    let nodeType = formData.type;
+
+    if (formData.type === 'Direction') {
+      nodeName = selectedDirection;
+    } else if (formData.type === 'Service') {
+      nodeName = selectedService;
+    } else {
+      nodeName = formData.fonction;
+    }
+
+    if (!nodeName.trim()) {
+      alert('Veuillez saisir le nom de la structure');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/organigramme/node/structure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          name: nodeName,
+          type: nodeType,
+          parentId: selectedNode.attributes?.id,
+          direction: selectedDirection,
+          service: selectedService
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erreur lors de l\'ajout');
+      }
+
+      await fetchOrgChart();
+      setShowAddModal(false);
+      alert(`${nodeType} ajouté(e) avec succès à l'organigramme`);
+    } catch (error) {
+      console.error('Erreur ajout structure:', error);
+      alert(`Erreur: ${error.message}`);
+    }
   };
 
   const handleAddPersonToOrg = async () => {
@@ -469,7 +634,8 @@ export default function OrgChartPage() {
         body: JSON.stringify({
           cadreId: selectedCadre.id,
           parentId: selectedNode.attributes?.id,
-          fonction: formData.fonction
+          fonction: formData.fonction,
+          grade: selectedGrade
         })
       });
 
@@ -478,7 +644,6 @@ export default function OrgChartPage() {
         throw new Error(error.message || 'Erreur lors de l\'ajout');
       }
 
-      // Recharger l'organigramme
       await fetchOrgChart();
       setShowAddModal(false);
       alert('Cadre ajouté avec succès à l\'organigramme');
@@ -518,7 +683,7 @@ export default function OrgChartPage() {
     setHighlightedNodes([...new Set(found)]);
   };
 
-  // ✅ Export PDF
+  // ✅ Fonctions d'export (identiques)
   const handleExportPDF = async () => {
     setIsExporting(true);
 
@@ -570,7 +735,6 @@ export default function OrgChartPage() {
     setIsExporting(false);
   };
 
-  // ✅ Export Word
   const handleExportWord = async () => {
     setIsExporting(true);
 
@@ -628,7 +792,6 @@ export default function OrgChartPage() {
     setIsExporting(false);
   };
 
-  // ✅ Export des données JSON
   const handleExportData = () => {
     const dataStr = JSON.stringify(treeData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -782,7 +945,7 @@ export default function OrgChartPage() {
           zoomable={true}
           collapsible={true}
           renderCustomNodeElement={renderCustomNodeElement}
-          nodeSize={{ x: 350, y: 300 }}
+          nodeSize={{ x: 370, y: 320 }}
           separation={{ siblings: 1.2, nonSiblings: 1.8 }}
           allowForeignObjects={true}
           ref={treeRef}
@@ -852,7 +1015,7 @@ export default function OrgChartPage() {
         </div>
       )}
 
-      {/* ✅ Modal d'ajout SIMPLIFIÉ - Recherche par matricule/nom avec filtrage intelligent */}
+      {/* ✅ NOUVEAU MODAL D'AJOUT AMÉLIORÉ avec sélection structurelle */}
       {showAddModal && (
         <div className="modal fade show" style={{
           display: 'block',
@@ -864,7 +1027,7 @@ export default function OrgChartPage() {
               <div className="modal-header">
                 <h5 className="modal-title">
                   <FaPlus className="me-2" />
-                  Ajouter un cadre sous {selectedNode?.name}
+                  {selectedNode ? `Ajouter sous ${selectedNode.name}` : 'Ajouter un élément'}
                 </h5>
                 <button
                   type="button"
@@ -875,149 +1038,349 @@ export default function OrgChartPage() {
               </div>
 
               <div className="modal-body">
-                <div className="alert alert-info">
-                  <i className="fas fa-info-circle me-2"></i>
-                  Recherchez un cadre par <strong>nom</strong>, <strong>prénom</strong>, <strong>grade</strong> ou <strong>matricule</strong>
-                  {selectedNode && selectedNode.attributes?.type && (
-                    <span> - Filtré automatiquement pour <strong>{selectedNode.name}</strong></span>
-                  )}
+                {/* ✅ NOUVEAU - Sélection du type d'élément à ajouter */}
+                <div className="mb-4">
+                  <label className="form-label fw-bold">
+                    <FaBuilding className="me-1" />
+                    Type d'élément à ajouter
+                  </label>
+                  <div className="row g-2">
+                    <div className="col-md-3">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="typeElement"
+                          id="typeDirection"
+                          value="Direction"
+                          checked={formData.type === 'Direction'}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        />
+                        <label className="form-check-label" htmlFor="typeDirection">
+                          <FaBuilding className="me-1" />
+                          Direction
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="typeElement"
+                          id="typeService"
+                          value="Service"
+                          checked={formData.type === 'Service'}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        />
+                        <label className="form-check-label" htmlFor="typeService">
+                          <FaUsers className="me-1" />
+                          Service
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="typeElement"
+                          id="typeEscadron"
+                          value="Escadron"
+                          checked={formData.type === 'Escadron'}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        />
+                        <label className="form-check-label" htmlFor="typeEscadron">
+                          <FaUserTie className="me-1" />
+                          Escadron
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="typeElement"
+                          id="typePersonne"
+                          value="Personne"
+                          checked={formData.type === 'Personne'}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        />
+                        <label className="form-check-label" htmlFor="typePersonne">
+                          <FaUserCircle className="me-1" />
+                          Personne
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <form>
-                  {/* ✅ Recherche de personnel */}
+                {/* ✅ NOUVEAU - Sélection Direction (si type Direction) */}
+                {formData.type === 'Direction' && (
                   <div className="mb-3">
                     <label className="form-label fw-bold">
-                      <FaSearch className="me-1" />
-                      Rechercher un cadre *
+                      <FaBuilding className="me-1" />
+                      Sélectionner une Direction
                     </label>
-                    <div className="position-relative">
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={personnelSearch}
-                        onChange={(e) => setPersonnelSearch(e.target.value)}
-                        placeholder="Tapez nom, prénom, grade ou matricule..."
-                        autoFocus
-                      />
-                      {searchingPersonnel && (
-                        <div className="position-absolute top-50 end-0 translate-middle-y me-3">
-                          <FaSpinner className="fa-spin" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ✅ Liste des résultats */}
-                    {availablePersonnel.length > 0 && (
-                      <div className="mt-2 border rounded" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                        {availablePersonnel.map((cadre) => (
-                          <div
-                            key={cadre.id}
-                            className={`p-2 cursor-pointer border-bottom ${selectedCadre?.id === cadre.id ? 'bg-primary text-white' : ''}`}
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => handleSelectCadre(cadre)}
-                            onMouseEnter={(e) => {
-                              if (selectedCadre?.id !== cadre.id) {
-                                e.target.style.backgroundColor = '#f8f9fa';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedCadre?.id !== cadre.id) {
-                                e.target.style.backgroundColor = 'transparent';
-                              }
-                            }}
-                          >
-                            <div className="d-flex align-items-center">
-                              {cadre.photo_url ? (
-                                <img
-                                  src={cadre.photo_url}
-                                  alt="Profile"
-                                  className="rounded-circle me-2"
-                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                />
-                              ) : (
-                                <FaUserCircle size={40} className="text-muted me-2" />
-                              )}
-                              <div>
-                                <div className="fw-bold">{cadre.nomComplet}</div>
-                                <small className={selectedCadre?.id === cadre.id ? 'text-light' : 'text-muted'}>
-                                  Mat: {cadre.matricule} | {cadre.fonction || 'Aucune fonction'}
-                                  {cadre.escadron && ` | ${cadre.escadron}`}
-                                </small>
-                                {cadre.statut_absence !== 'Présent' && (
-                                  <span className="badge bg-warning text-dark ms-1">
-                                    {cadre.statut_absence}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {personnelSearch && !searchingPersonnel && availablePersonnel.length === 0 && (
-                      <div className="text-muted mt-2">
-                        <small>Aucun cadre trouvé pour "{personnelSearch}"</small>
-                      </div>
-                    )}
+                    <select
+                      className="form-select"
+                      value={selectedDirection}
+                      onChange={(e) => setSelectedDirection(e.target.value)}
+                    >
+                      <option value="">-- Choisir une Direction --</option>
+                      {Object.keys(DIRECTIONS_SERVICES).map(direction => (
+                        <option key={direction} value={direction}>{direction}</option>
+                      ))}
+                    </select>
                   </div>
+                )}
 
-                  {/* ✅ Affichage du cadre sélectionné */}
-                  {selectedCadre && (
+                {/* ✅ NOUVEAU - Sélection Service (si type Service) */}
+                {formData.type === 'Service' && (
+                  <>
                     <div className="mb-3">
-                      <label className="form-label fw-bold text-success">
-                        Cadre sélectionné
+                      <label className="form-label fw-bold">
+                        <FaBuilding className="me-1" />
+                        Direction parente
                       </label>
-                      <div className="card">
-                        <div className="card-body p-3">
-                          <div className="d-flex align-items-center">
-                            {selectedCadre.photo_url ? (
-                              <img
-                                src={selectedCadre.photo_url}
-                                alt="Profile"
-                                className="rounded-circle me-3"
-                                style={{ width: '60px', height: '60px', objectFit: 'cover' }}
-                              />
-                            ) : (
-                              <FaUserCircle size={60} className="text-muted me-3" />
-                            )}
-                            <div>
-                              <h6 className="mb-1">{selectedCadre.nomComplet}</h6>
-                              <div className="text-muted">
-                                <small>Matricule: {selectedCadre.matricule}</small><br />
-                                <small>Fonction actuelle: {selectedCadre.fonction || 'Non définie'}</small>
-                                {selectedCadre.escadron && (
-                                  <>
-                                    <br />
-                                    <small>Escadron: {selectedCadre.escadron}</small>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <select
+                        className="form-select"
+                        value={selectedDirection}
+                        onChange={(e) => {
+                          setSelectedDirection(e.target.value);
+                          setSelectedService('');
+                        }}
+                      >
+                        <option value="">-- Choisir une Direction --</option>
+                        {Object.keys(DIRECTIONS_SERVICES).map(direction => (
+                          <option key={direction} value={direction}>{direction}</option>
+                        ))}
+                      </select>
                     </div>
-                  )}
 
-                  {/* ✅ Fonction dans l'organigramme */}
+                    {selectedDirection && (
+                      <div className="mb-3">
+                        <label className="form-label fw-bold">
+                          <FaUsers className="me-1" />
+                          Sélectionner un Service
+                        </label>
+                        <select
+                          className="form-select"
+                          value={selectedService}
+                          onChange={(e) => setSelectedService(e.target.value)}
+                        >
+                          <option value="">-- Choisir un Service --</option>
+                          {DIRECTIONS_SERVICES[selectedDirection]?.map(service => (
+                            <option key={service} value={service}>{service}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ✅ Nom personnalisé pour Escadron, Peloton, etc. */}
+                {(formData.type === 'Escadron' || formData.type === 'Peloton') && (
                   <div className="mb-3">
                     <label className="form-label fw-bold">
-                      Fonction dans l'organigramme *
+                      Nom du {formData.type}
                     </label>
                     <input
                       type="text"
                       className="form-control"
                       value={formData.fonction}
                       onChange={(e) => setFormData({ ...formData, fonction: e.target.value })}
-                      placeholder="Ex: Commandant d'escadron, Chef de peloton, Instructeur..."
-                      disabled={!selectedCadre}
+                      placeholder={`Ex: ${formData.type} Alpha, ${formData.type} Bravo...`}
                     />
-                    <div className="form-text">
-                      Cette fonction sera affichée dans l'organigramme (peut être différente de sa fonction administrative)
-                    </div>
                   </div>
-                </form>
+                )}
+
+                {/* ✅ Section Personne - Recherche et sélection de grade */}
+                {formData.type === 'Personne' && (
+                  <>
+                    <div className="alert alert-info">
+                      <i className="fas fa-info-circle me-2"></i>
+                      Recherchez un cadre par <strong>nom</strong>, <strong>prénom</strong>, <strong>grade</strong> ou <strong>matricule</strong>
+                      {selectedNode && selectedNode.attributes?.type && (
+                        <span> - Filtré automatiquement pour <strong>{selectedNode.name}</strong></span>
+                      )}
+                    </div>
+
+                    {/* ✅ Sélection du grade d'abord */}
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">
+                        Catégorie de grade
+                      </label>
+                      <select
+                        className="form-select"
+                        value={selectedGradeCategory}
+                        onChange={(e) => {
+                          setSelectedGradeCategory(e.target.value);
+                          setSelectedGrade('');
+                        }}
+                      >
+                        <option value="">-- Choisir une catégorie --</option>
+                        {Object.keys(GRADES_HIERARCHY).map(category => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedGradeCategory && (
+                      <div className="mb-3">
+                        <label className="form-label fw-bold">
+                          Grade spécifique
+                        </label>
+                        <select
+                          className="form-select"
+                          value={selectedGrade}
+                          onChange={(e) => setSelectedGrade(e.target.value)}
+                        >
+                          <option value="">-- Choisir un grade --</option>
+                          {GRADES_HIERARCHY[selectedGradeCategory]?.map(grade => (
+                            <option key={grade} value={grade}>{grade}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* ✅ Recherche de personnel */}
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">
+                        <FaSearch className="me-1" />
+                        Rechercher un cadre
+                      </label>
+                      <div className="position-relative">
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={personnelSearch}
+                          onChange={(e) => setPersonnelSearch(e.target.value)}
+                          placeholder="Tapez nom, prénom, grade ou matricule..."
+                          autoFocus
+                        />
+                        {searchingPersonnel && (
+                          <div className="position-absolute top-50 end-0 translate-middle-y me-3">
+                            <FaSpinner className="fa-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ✅ Liste des résultats */}
+                      {availablePersonnel.length > 0 && (
+                        <div className="mt-2 border rounded" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                          {availablePersonnel.map((cadre) => (
+                            <div
+                              key={cadre.id}
+                              className={`p-2 cursor-pointer border-bottom ${selectedCadre?.id === cadre.id ? 'bg-primary text-white' : ''}`}
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => handleSelectCadre(cadre)}
+                              onMouseEnter={(e) => {
+                                if (selectedCadre?.id !== cadre.id) {
+                                  e.target.style.backgroundColor = '#f8f9fa';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedCadre?.id !== cadre.id) {
+                                  e.target.style.backgroundColor = 'transparent';
+                                }
+                              }}
+                            >
+                              <div className="d-flex align-items-center">
+                                {cadre.photo_url ? (
+                                  <img
+                                    src={cadre.photo_url}
+                                    alt="Profile"
+                                    className="rounded-circle me-2"
+                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <FaUserCircle size={40} className="text-muted me-2" />
+                                )}
+                                <div>
+                                  <div className="fw-bold">{cadre.nomComplet}</div>
+                                  <small className={selectedCadre?.id === cadre.id ? 'text-light' : 'text-muted'}>
+                                    Mat: {cadre.matricule} | {cadre.fonction || 'Aucune fonction'}
+                                    {cadre.escadron && ` | ${cadre.escadron}`}
+                                  </small>
+                                  {cadre.statut_absence !== 'Présent' && (
+                                    <span className="badge bg-warning text-dark ms-1">
+                                      {cadre.statut_absence}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {personnelSearch && !searchingPersonnel && availablePersonnel.length === 0 && (
+                        <div className="text-muted mt-2">
+                          <small>Aucun cadre trouvé pour "{personnelSearch}"</small>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ✅ Affichage du cadre sélectionné */}
+                    {selectedCadre && (
+                      <div className="mb-3">
+                        <label className="form-label fw-bold text-success">
+                          Cadre sélectionné
+                        </label>
+                        <div className="card">
+                          <div className="card-body p-3">
+                            <div className="d-flex align-items-center">
+                              {selectedCadre.photo_url ? (
+                                <img
+                                  src={selectedCadre.photo_url}
+                                  alt="Profile"
+                                  className="rounded-circle me-3"
+                                  style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <FaUserCircle size={60} className="text-muted me-3" />
+                              )}
+                              <div>
+                                <h6 className="mb-1">{selectedCadre.nomComplet}</h6>
+                                <div className="text-muted">
+                                  <small>Matricule: {selectedCadre.matricule}</small><br />
+                                  <small>Grade: {selectedGrade || selectedCadre.grade}</small><br />
+                                  <small>Fonction actuelle: {selectedCadre.fonction || 'Non définie'}</small>
+                                  {selectedCadre.escadron && (
+                                    <>
+                                      <br />
+                                      <small>Escadron: {selectedCadre.escadron}</small>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ✅ Fonction dans l'organigramme */}
+                    <div className="mb-3">
+                      <label className="form-label fw-bold">
+                        Fonction dans l'organigramme *
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={formData.fonction}
+                        onChange={(e) => setFormData({ ...formData, fonction: e.target.value })}
+                        placeholder="Ex: Commandant d'escadron, Chef de peloton, Instructeur..."
+                        disabled={!selectedCadre}
+                      />
+                      <div className="form-text">
+                        Cette fonction sera affichée dans l'organigramme (peut être différente de sa fonction administrative)
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -1029,15 +1392,33 @@ export default function OrgChartPage() {
                   <FaTimes className="me-1" />
                   Annuler
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-success"
-                  onClick={handleAddPersonToOrg}
-                  disabled={!selectedCadre || !formData.fonction.trim()}
-                >
-                  <FaPlus className="me-1" />
-                  Ajouter à l'organigramme
-                </button>
+
+                {/* ✅ Bouton conditionnel selon le type */}
+                {formData.type === 'Personne' ? (
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={handleAddPersonToOrg}
+                    disabled={!selectedCadre || !formData.fonction.trim()}
+                  >
+                    <FaPlus className="me-1" />
+                    Ajouter à l'organigramme
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={handleAddStructuralNode}
+                    disabled={
+                      (formData.type === 'Direction' && !selectedDirection) ||
+                      (formData.type === 'Service' && (!selectedDirection || !selectedService)) ||
+                      ((formData.type === 'Escadron' || formData.type === 'Peloton') && !formData.fonction.trim())
+                    }
+                  >
+                    <FaPlus className="me-1" />
+                    Ajouter {formData.type}
+                  </button>
+                )}
               </div>
             </div>
           </div>

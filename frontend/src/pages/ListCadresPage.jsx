@@ -1,15 +1,37 @@
-// src/pages/CadresList.jsx
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Modal, Button, Form, Pagination, Table } from 'react-bootstrap';
+import { Modal, Button, Form, Pagination, Table, Nav, Alert } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
-import { FaSearch, FaFilter, FaFileExcel, FaFilePdf, FaEye, FaEdit, FaTimes, FaTrash, FaPrint, FaImage } from 'react-icons/fa';
+import {
+    FaSearch,
+    FaFilter,
+    FaFileExcel,
+    FaFilePdf,
+    FaEye,
+    FaEdit,
+    FaTimes,
+    FaTrash,
+    FaPrint,
+    FaUpload,
+    FaHistory,
+    FaUser,
+    FaCalendarAlt,
+    FaInfoCircle,
+    FaUserShield,
+    FaUserTie
+} from 'react-icons/fa';
+import './CadresList.css';
+
+// Nouveaux composants
+import HistoriqueAbsenceModal from './HistoriqueAbsenceModal';
+import PhotoUpload from './PhotoUpload';
+import RoleBasedButton from './RoleBasedButton';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -64,7 +86,7 @@ const calculateDuration = (startDateString) => {
 };
 
 function CadresList() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -73,7 +95,7 @@ function CadresList() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // NOUVEAU : États pour les filtres améliorés
+    // États pour les filtres améliorés
     const [searchTerm, setSearchTerm] = useState('');
     const [filterEntite, setFilterEntite] = useState('');
     const [filterService, setFilterService] = useState('');
@@ -94,18 +116,89 @@ function CadresList() {
     // États pour les modales
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showHistoriqueModal, setShowHistoriqueModal] = useState(false);
     const [cadreToEdit, setCadreToEdit] = useState(null);
     const [cadreToDetail, setCadreToDetail] = useState(null);
+    const [cadreForHistorique, setCadreForHistorique] = useState(null);
     const [editFormData, setEditFormData] = useState({});
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState(null);
 
-    // NOUVEAU : États pour l'export
+    // États pour l'onglet du modal de détail
+    const [activeDetailTab, setActiveDetailTab] = useState('informations');
+
+    // États pour l'export
     const [isExporting, setIsExporting] = useState(false);
 
     const detailModalBodyRef = useRef(null);
 
-    // NOUVEAU : Extraire le terme de recherche de l'URL
+    const userRole = user?.role || 'Standard';
+    const isAdmin = userRole === 'Admin';
+    const isConsultant = userRole === 'Consultant';
+    const isStandard = userRole === 'Standard';
+
+    // ✅ FONCTION CORRIGÉE pour l'affichage des photos
+    const getPhotoUrl = (photoUrl) => {
+        if (!photoUrl) return '/default-avatar.png';
+
+        console.log('Photo URL brute:', photoUrl);
+
+        // Si l'URL commence par /uploads/, enlever le / initial
+        const cleanPath = photoUrl.startsWith('/uploads/') ? photoUrl.substring(1) : `uploads/${photoUrl}`;
+        const fullUrl = `${API_BASE_URL}${cleanPath}`;
+
+        console.log('URL complète construite:', fullUrl);
+        return fullUrl;
+    };
+
+    // ✅ CORRIGÉ : Fonction pour vérifier les permissions de modification
+    const canModifyCadre = useCallback((cadre) => {
+        console.log('=== DEBUG canModifyCadre ===');
+        console.log('userRole:', `"${userRole}"`);
+        console.log('cadre:', cadre.nom, cadre.prenom);
+        console.log('Test Admin:', userRole === 'Admin');
+        console.log('Test Consultant:', userRole === 'Consultant');
+        console.log('Test Standard:', userRole === 'Standard');
+        console.log('============================');
+
+        // Admin peut tout faire sans restriction
+        if (userRole === 'Admin') {
+            console.log('✅ Admin - Accès autorisé');
+            return true;
+        }
+
+        // Consultant ne peut rien modifier
+        if (userRole === 'Consultant') {
+            console.log('❌ Consultant - Accès refusé');
+            return false;
+        }
+
+        // Standard peut modifier seulement son entité
+        if (userRole === 'Standard') {
+            const canModify = user?.service === cadre.service || user?.escadron_id === cadre.cours;
+            console.log('Standard - Peut modifier:', canModify);
+            return canModify;
+        }
+
+        console.log('❌ Rôle non reconnu');
+        return false;
+    }, [userRole, user]);
+
+    // Fonction pour obtenir le badge de rôle
+    const getRoleBadge = () => {
+        if (isAdmin) {
+            return <span className="badge bg-success ms-2"><FaUserShield className="me-1" />Administrateur</span>;
+        }
+        if (isConsultant) {
+            return <span className="badge bg-info ms-2"><FaEye className="me-1" />Consultation seule</span>;
+        }
+        if (isStandard) {
+            return <span className="badge bg-warning ms-2"><FaUserTie className="me-1" />Vue limitée</span>;
+        }
+        return null;
+    };
+
+    // Extraire le terme de recherche de l'URL
     useEffect(() => {
         const urlParams = new URLSearchParams(location.search);
         const searchParam = urlParams.get('search');
@@ -113,7 +206,33 @@ function CadresList() {
             setSearchTerm(searchParam);
             console.log(`🔍 Terme de recherche détecté dans l'URL: "${searchParam}"`);
         }
-    }, [location]);
+
+        // Charger les filtres sauvegardés (pas pour standard)
+        if (!isStandard) {
+            const savedFilters = localStorage.getItem('cadres_filters');
+            if (savedFilters) {
+                const filters = JSON.parse(savedFilters);
+                if (filters.filterEntite) setFilterEntite(filters.filterEntite);
+                if (filters.filterService) setFilterService(filters.filterService);
+                if (filters.filterEscadron) setFilterEscadron(filters.filterEscadron);
+                if (filters.filterStatut) setFilterStatut(filters.filterStatut);
+            }
+        }
+    }, [location, isStandard]);
+
+    // Sauvegarder les filtres (pas pour standard)
+    useEffect(() => {
+        if (!isStandard) {
+            const filters = {
+                filterEntite,
+                filterService,
+                filterEscadron,
+                filterStatut,
+                filterCours
+            };
+            localStorage.setItem('cadres_filters', JSON.stringify(filters));
+        }
+    }, [filterEntite, filterService, filterEscadron, filterStatut, filterCours, isStandard]);
 
     // Fonction de tri des grades selon la hiérarchie puis par date de nomination
     const sortByGradeAndNominationDate = useCallback((data) => {
@@ -144,14 +263,14 @@ function CadresList() {
         });
     }, []);
 
-    // NOUVEAU : Charger les options de filtres
+    // Charger les options de filtres
     useEffect(() => {
         const fetchFilterOptions = async () => {
             if (!token) return;
 
             setServicesLoading(true);
             try {
-                // Récupérer les services via la nouvelle route
+                // Récupérer les services
                 const servicesResponse = await fetch(`${API_BASE_URL}api/cadres/services`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -160,7 +279,6 @@ function CadresList() {
                     setAllServices(services);
                     console.log(`✅ ${services.length} services chargés`);
                 } else {
-                    // Fallback vers l'ancienne méthode
                     const response = await fetch(`${API_BASE_URL}api/cadres?entite=Service`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
@@ -180,9 +298,10 @@ function CadresList() {
                     setAllEscadrons(escadrons);
                     console.log(`✅ ${escadrons.length} escadrons chargés`);
                 }
+
             } catch (error) {
-                console.error('❌ Erreur lors du chargement des options de filtres:', error);
-                setServicesError(error.message);
+                console.error('❌ Erreur chargement options de filtres:', error);
+                setServicesError('Erreur lors du chargement des services');
             } finally {
                 setServicesLoading(false);
             }
@@ -191,235 +310,210 @@ function CadresList() {
         fetchFilterOptions();
     }, [token]);
 
-    // Chargement des cadres avec filtres
-    useEffect(() => {
-        const fetchCadres = async () => {
-            if (!token) {
-                setError("Authentification requise");
-                setLoading(false);
-                return;
+    // Charger les cadres
+    const fetchCadres = useCallback(async () => {
+        if (!token) return;
+
+        console.log('🔄 Chargement des cadres...');
+        setLoading(true);
+        setError(null);
+
+        try {
+            let endpoint = `${API_BASE_URL}api/cadres`;
+            const params = new URLSearchParams();
+
+            // Appliquer les filtres selon le rôle
+            if (filterEntite && !isStandard) params.append('entite', filterEntite);
+            if (filterService && !isStandard) params.append('service', filterService);
+            if (filterEscadron && !isStandard) params.append('escadron', filterEscadron);
+            if (filterStatut) params.append('statut', filterStatut);
+            if (filterCours && !isStandard) params.append('cours', filterCours);
+
+            if (params.toString()) {
+                endpoint += `?${params.toString()}`;
             }
 
-            setLoading(true);
-            setError(null);
+            console.log('📡 Endpoint final:', endpoint);
 
-            try {
-                const queryParams = new URLSearchParams();
-
-                if (filterEntite) queryParams.append('entite', filterEntite);
-                if (filterService) queryParams.append('service', filterService);
-                if (filterCours) queryParams.append('cours', filterCours);
-                if (filterEscadron) queryParams.append('escadron', filterEscadron);
-                if (filterStatut) queryParams.append('statut', filterStatut);
-
-                const url = `${API_BASE_URL}api/cadres?${queryParams.toString()}`;
-                console.log("🔄 Chargement des cadres depuis:", url);
-
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+            const response = await fetch(endpoint, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
+            });
 
-                const data = await response.json();
-                setCadres(sortByGradeAndNominationDate(data));
-                setCurrentPage(1);
-                console.log(`✅ ${data.length} cadres chargés et triés`);
-
-            } catch (err) {
-                console.error("❌ Erreur lors du chargement des cadres:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Erreur API:', response.status, errorText);
+                throw new Error(`Erreur ${response.status}: ${response.statusText}`);
             }
-        };
 
+            const data = await response.json();
+            console.log('✅ Données reçues:', data.length, 'cadres');
+
+            setCadres(Array.isArray(data) ? data : []);
+
+        } catch (error) {
+            console.error('❌ Erreur lors du chargement des cadres:', error);
+            setError('Erreur lors du chargement des données');
+        } finally {
+            setLoading(false);
+        }
+    }, [token, filterEntite, filterService, filterEscadron, filterStatut, filterCours, isStandard]);
+
+    // Charger les cadres au montage et quand les filtres changent
+    useEffect(() => {
         fetchCadres();
-    }, [token, filterEntite, filterService, filterCours, filterEscadron, filterStatut, sortByGradeAndNominationDate]);
+    }, [fetchCadres]);
 
-    // NOUVEAU : Filtrage côté client avec recherche
+    // Fonction de recherche et filtrage côté client
     const filteredAndSearchedCadres = useMemo(() => {
+        if (!Array.isArray(cadres)) return [];
+
         let filtered = [...cadres];
 
         // Appliquer la recherche textuelle
-        if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase().trim();
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
             filtered = filtered.filter(cadre =>
-                cadre.nom?.toLowerCase().includes(term) ||
-                cadre.prenom?.toLowerCase().includes(term) ||
-                cadre.matricule?.toLowerCase().includes(term) ||
-                cadre.grade?.toLowerCase().includes(term) ||
-                cadre.service?.toLowerCase().includes(term) ||
-                cadre.fonction?.toLowerCase().includes(term) ||
-                cadre.entite?.toLowerCase().includes(term) ||
-                cadre.numero_telephone?.toLowerCase().includes(term) ||
-                cadre.email?.toLowerCase().includes(term) ||
-                cadre.EscadronResponsable?.nom?.toLowerCase().includes(term)
+                (cadre.nom && cadre.nom.toLowerCase().includes(searchLower)) ||
+                (cadre.prenom && cadre.prenom.toLowerCase().includes(searchLower)) ||
+                (cadre.matricule && cadre.matricule.toLowerCase().includes(searchLower)) ||
+                (cadre.grade && cadre.grade.toLowerCase().includes(searchLower)) ||
+                (cadre.fonction && cadre.fonction.toLowerCase().includes(searchLower)) ||
+                (cadre.service && cadre.service.toLowerCase().includes(searchLower))
             );
         }
 
-        return filtered;
-    }, [cadres, searchTerm]);
+        // Trier selon la hiérarchie des grades
+        return sortByGradeAndNominationDate(filtered);
+    }, [cadres, searchTerm, sortByGradeAndNominationDate]);
 
-    // Gestion pagination mise à jour
+    // Données de pagination
     const paginationData = useMemo(() => {
         const totalItems = filteredAndSearchedCadres.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
         const indexOfLastItem = currentPage * itemsPerPage;
         const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+        const currentItems = filteredAndSearchedCadres.slice(indexOfFirstItem, indexOfLastItem);
 
         return {
-            currentItems: filteredAndSearchedCadres.slice(indexOfFirstItem, indexOfLastItem),
-            totalPages: Math.ceil(totalItems / itemsPerPage),
-            indexOfFirstItem,
+            totalItems,
+            totalPages,
             indexOfLastItem,
-            totalItems
+            indexOfFirstItem,
+            currentItems
         };
     }, [filteredAndSearchedCadres, currentPage, itemsPerPage]);
 
-    // NOUVEAU : Fonction d'export Excel
-    const handleExportExcel = useCallback(() => {
-        setIsExporting(true);
-        try {
-            const headers = [
-                'Grade', 'Nom', 'Prénom', 'Matricule', 'Téléphone', 'Email',
-                'Service', 'Escadron', 'Fonction', 'Entité', 'Statut', 'Sexe',
-                'Date Nomination', 'Date Séjour EGNA'
-            ];
+    // Fonctions de gestion des modales et actions
+    const handleEdit = (cadre) => {
+        setCadreToEdit(cadre);
+        setEditFormData({...cadre});
+        setShowEditModal(true);
+        setEditError(null);
+    };
 
-            const excelData = [headers];
+    const handleDetail = (cadre) => {
+        setCadreToDetail(cadre);
+        setShowDetailModal(true);
+        setActiveDetailTab('informations');
+    };
 
-            filteredAndSearchedCadres.forEach(cadre => {
-                excelData.push([
-                    cadre.grade || '',
-                    cadre.nom || '',
-                    cadre.prenom || '',
-                    cadre.matricule || '',
-                    cadre.numero_telephone || '',
-                    cadre.email || '',
-                    cadre.service || '',
-                    cadre.EscadronResponsable?.nom || '',
-                    cadre.fonction || '',
-                    cadre.entite || '',
-                    cadre.statut_absence || 'Présent',
-                    cadre.sexe || '',
-                    cadre.date_nomination || '',
-                    cadre.date_sejour_egna || ''
-                ]);
-            });
+    const handleHistorique = (cadre) => {
+        setCadreForHistorique(cadre);
+        setShowHistoriqueModal(true);
+    };
 
-            const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Cadres');
-
-            let fileName = `liste_cadres_${new Date().toISOString().split('T')[0]}`;
-            if (searchTerm) fileName += `_recherche_${searchTerm.replace(/\s+/g, '_')}`;
-            if (filterService) fileName += `_${filterService}`;
-            if (filterEntite) fileName += `_${filterEntite}`;
-            fileName += '.xlsx';
-
-            XLSX.writeFile(workbook, fileName);
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Export Excel réussi',
-                text: `${filteredAndSearchedCadres.length} cadres exportés`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-
-        } catch (error) {
-            console.error('❌ Erreur lors de l\'export Excel:', error);
-            Swal.fire('Erreur', 'Impossible d\'exporter les données', 'error');
-        } finally {
-            setIsExporting(false);
-        }
-    }, [filteredAndSearchedCadres, searchTerm, filterService, filterEntite]);
-
-    // Génération PDF mise à jour
-    const handleGeneratePdf = useCallback(async () => {
-        if (filteredAndSearchedCadres.length === 0) {
-            Swal.fire("Info", "Aucun cadre à imprimer", "info");
-            return;
-        }
-
-        const swal = Swal.fire({
-            title: 'Génération PDF',
-            text: 'Préparation du document...',
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading()
+    const handleDelete = async (cadre) => {
+        const result = await Swal.fire({
+            title: 'Confirmer la suppression',
+            text: `Êtes-vous sûr de vouloir supprimer ${cadre.grade} ${cadre.nom} ${cadre.prenom} (${cadre.matricule}) ?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
         });
 
-        try {
-            const doc = new jsPDF('landscape');
-            doc.setFontSize(16);
+        if (result.isConfirmed) {
+            try {
+                const response = await fetch(`${API_BASE_URL}api/cadres/${cadre.id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-            let titre = `Liste des cadres`;
-            if (searchTerm) titre += ` - Recherche: "${searchTerm}"`;
-            if (filterEntite) titre += ` - ${filterEntite}`;
-
-            doc.text(titre, 148, 15, { align: 'center' });
-
-            // Informations sur les filtres
-            let filterInfo = '';
-            if (filterService) filterInfo += `Service: ${filterService} | `;
-            if (filterEscadron) {
-                const escadron = allEscadrons.find(e => e.id.toString() === filterEscadron);
-                if (escadron) filterInfo += `Escadron: ${escadron.nom} | `;
+                if (response.ok) {
+                    await Swal.fire({
+                        title: 'Supprimé !',
+                        text: 'Le cadre a été supprimé avec succès.',
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    fetchCadres(); // Recharger la liste
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Erreur lors de la suppression');
+                }
+            } catch (error) {
+                console.error('Erreur suppression:', error);
+                await Swal.fire({
+                    title: 'Erreur',
+                    text: error.message || 'Erreur lors de la suppression du cadre',
+                    icon: 'error'
+                });
             }
-            if (filterStatut) filterInfo += `Statut: ${filterStatut} | `;
-
-            if (filterInfo) {
-                doc.setFontSize(10);
-                doc.text(`Filtres: ${filterInfo.slice(0, -3)}`, 148, 22, { align: 'center' });
-            }
-
-            doc.autoTable({
-                startY: filterInfo ? 30 : 25,
-                head: [['#', 'Grade', 'Nom', 'Prénom', 'Matricule', 'Téléphone', 'Service', 'Escadron']],
-                body: filteredAndSearchedCadres.map((cadre, index) => [
-                    index + 1,
-                    cadre.grade || '-',
-                    cadre.nom || '-',
-                    cadre.prenom || '-',
-                    cadre.matricule || '-',
-                    cadre.numero_telephone || '-',
-                    cadre.service || '-',
-                    cadre.EscadronResponsable?.nom || '-'
-                ]),
-                margin: { top: 20 },
-                styles: { fontSize: 10 },
-                headStyles: { fillColor: [41, 128, 185] }
-            });
-
-            let fileName = `liste_cadres_${new Date().toISOString().slice(0,10)}`;
-            if (searchTerm) fileName += `_recherche_${searchTerm.replace(/\s+/g, '_')}`;
-            fileName += '.pdf';
-
-            doc.save(fileName);
-            await swal.close();
-
-            Swal.fire({
-                icon: 'success',
-                title: 'PDF généré',
-                text: `${filteredAndSearchedCadres.length} cadres exportés`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-
-        } catch (error) {
-            console.error("❌ Erreur génération PDF:", error);
-            await swal.close();
-            Swal.fire("Erreur", "Échec de la génération du PDF", "error");
         }
-    }, [filteredAndSearchedCadres, searchTerm, filterEntite, filterService, filterEscadron, filterStatut, allEscadrons]);
+    };
 
-    // NOUVEAU : Fonction pour réinitialiser les filtres
+    const handleSaveEdit = async () => {
+        setEditLoading(true);
+        setEditError(null);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}api/cadres/${cadreToEdit.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(editFormData)
+            });
+
+            if (response.ok) {
+                setShowEditModal(false);
+                await Swal.fire({
+                    title: 'Succès',
+                    text: 'Cadre modifié avec succès',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                fetchCadres(); // Recharger la liste
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erreur lors de la modification');
+            }
+        } catch (error) {
+            console.error('Erreur modification:', error);
+            setEditError(error.message || 'Erreur lors de la modification du cadre');
+        } finally {
+            setEditLoading(false);
+        }
+    };
+
+    const handlePhotoUpdate = (newPhotoUrl) => {
+        setEditFormData(prev => ({
+            ...prev,
+            photo_url: newPhotoUrl
+        }));
+    };
+
     const handleResetFilters = () => {
         setSearchTerm('');
         setFilterEntite('');
@@ -427,133 +521,98 @@ function CadresList() {
         setFilterEscadron('');
         setFilterStatut('');
         setFilterCours('');
-        navigate('/cadres', { replace: true });
+        setCurrentPage(1);
     };
 
-    // Fonction d'édition
-    const handleEdit = (cadre) => {
-        setCadreToEdit(cadre);
-        setEditFormData({
-            id: cadre.id,
-            nom: cadre.nom || '',
-            prenom: cadre.prenom || '',
-            matricule: cadre.matricule || '',
-            grade: cadre.grade || '',
-            fonction: cadre.fonction || '',
-            entite: cadre.entite || 'None',
-            service: cadre.service || '',
-            cours: cadre.cours || null,
-            sexe: cadre.sexe || '',
-            numero_telephone: cadre.numero_telephone || '',
-
-        });
-        setShowEditModal(true);
-    };
-
-    // Soumission du formulaire d'édition
-    const handleEditSubmit = async () => {
-        setEditLoading(true);
-        setEditError(null);
-
+    // Fonctions d'export
+    const handleExportExcel = () => {
+        setIsExporting(true);
         try {
-            const response = await fetch(`${API_BASE_URL}api/cadres/${editFormData.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(editFormData)
+            const dataToExport = filteredAndSearchedCadres.map((cadre, index) => ({
+                '#': index + 1,
+                'Grade': cadre.grade || '-',
+                'Nom': cadre.nom || '-',
+                'Prénom': cadre.prenom || '-',
+                'Matricule': cadre.matricule || '-',
+                'Date de nomination': cadre.date_nomination || '-',
+                'Entité': cadre.entite || '-',
+                'Service': cadre.service || '-',
+                'Escadron': cadre.EscadronResponsable?.nom || '-',
+                'Téléphone': cadre.numero_telephone || '-'
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Liste des Cadres');
+            XLSX.writeFile(wb, `liste_cadres_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+            Swal.fire({
+                title: 'Export réussi',
+                text: 'Le fichier Excel a été téléchargé',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Erreur lors de la mise à jour');
-            }
-
-            const updatedCadre = await response.json();
-
-            setCadres(prevCadres =>
-                prevCadres.map(cadre =>
-                    cadre.id === editFormData.id ? updatedCadre.cadre : cadre
-                )
-            );
-
-            setShowEditModal(false);
-            Swal.fire('Succès', 'Cadre mis à jour avec succès', 'success');
-        } catch (err) {
-            setEditError(err.message);
+        } catch (error) {
+            console.error('Erreur export Excel:', error);
+            Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de l\'export Excel',
+                icon: 'error'
+            });
         } finally {
-            setEditLoading(false);
+            setIsExporting(false);
         }
     };
 
-    // Fonction de suppression
-    const handleDelete = async (id) => {
-        const result = await Swal.fire({
-            title: 'Confirmer la suppression',
-            text: "Cette action est irréversible!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Supprimer',
-            cancelButtonText: 'Annuler'
+    const handleGeneratePdf = () => {
+        const doc = new jsPDF();
+        doc.text('Liste des Cadres', 14, 20);
+
+        const tableData = filteredAndSearchedCadres.map((cadre, index) => [
+            index + 1,
+            cadre.grade || '-',
+            cadre.nom || '-',
+            cadre.prenom || '-',
+            cadre.matricule || '-',
+            cadre.date_nomination || '-',
+            cadre.entite || '-',
+            cadre.service || '-',
+            cadre.EscadronResponsable?.nom || '-',
+            cadre.numero_telephone || '-'
+        ]);
+
+        doc.autoTable({
+            head: [['#', 'Grade', 'Nom', 'Prénom', 'Matricule', 'Date nom.', 'Entité', 'Service', 'Escadron', 'Téléphone']],
+            body: tableData,
+            startY: 30,
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [41, 128, 185] }
         });
 
-        if (result.isConfirmed) {
-            try {
-                const response = await fetch(`${API_BASE_URL}api/cadres/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Échec de la suppression');
-                }
-
-                setCadres(cadres.filter(c => c.id !== id));
-                Swal.fire('Supprimé!', 'Le cadre a été supprimé.', 'success');
-            } catch (err) {
-                Swal.fire('Erreur!', err.message, 'error');
-            }
-        }
+        doc.save(`liste_cadres_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
-    const handleDetail = (cadre) => {
-        setCadreToDetail(cadre);
-        setShowDetailModal(true);
-    };
-
-    const handlePrintDetail = useCallback(async () => {
-        const input = detailModalBodyRef.current;
-        if (!input || !cadreToDetail) {
-            Swal.fire("Erreur", "Contenu à imprimer non disponible.", "error");
-            return;
-        }
-
-        const swal = Swal.fire({
-            title: 'Génération PDF Fiche',
-            text: 'Préparation du document...',
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading()
-        });
+    const handleExportFicheIndividuelle = async () => {
+        if (!cadreToDetail) return;
 
         try {
-            const canvas = await html2canvas(input, {
+            const element = detailModalBodyRef.current;
+            if (!element) return;
+
+            const canvas = await html2canvas(element, {
                 scale: 2,
                 useCORS: true,
                 allowTaint: true
             });
 
             const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-
+            const pdf = new jsPDF();
             const imgWidth = 210;
             const pageHeight = 295;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             let heightLeft = imgHeight;
+
             let position = 0;
 
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
@@ -567,27 +626,47 @@ function CadresList() {
             }
 
             pdf.save(`fiche_${cadreToDetail.nom}_${cadreToDetail.prenom}.pdf`);
-            await swal.close();
         } catch (error) {
-            console.error("Erreur génération PDF:", error);
-            await swal.close();
-            Swal.fire("Erreur", "Échec de la génération du PDF", "error");
+            console.error('Erreur export fiche:', error);
+            Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de l\'export de la fiche',
+                icon: 'error'
+            });
         }
-    }, [cadreToDetail]);
+    };
+
+    // Ajout des styles d'impression
+    useEffect(() => {
+        const styleSheet = document.createElement("style");
+        styleSheet.type = "text/css";
+        styleSheet.innerText = printStyles;
+        document.head.appendChild(styleSheet);
+
+        return () => {
+            document.head.removeChild(styleSheet);
+        };
+    }, []);
 
     return (
         <div className="container-fluid">
-            <style>{printStyles}</style>
             <div className="row">
                 <div className="col-12">
-                    <h1 className="mb-4 d-flex align-items-center">
-                        <FaSearch className="me-2" />
-                        Liste des Cadres
-                        <span className="badge bg-primary ms-2">{filteredAndSearchedCadres.length}</span>
-                        {searchTerm && <small className="text-muted ms-2">- Recherche: "{searchTerm}"</small>}
-                    </h1>
+                    {/* En-tête */}
+                    <div className="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2>
+                                <FaUser className="me-2" />
+                                Liste des Cadres
+                                {getRoleBadge()}
+                            </h2>
+                            <p className="text-muted">
+                                {loading ? 'Chargement...' : `${filteredAndSearchedCadres.length} cadre(s) affiché(s)`}
+                            </p>
+                        </div>
+                    </div>
 
-                    {/* NOUVEAU : Section des filtres améliorée */}
+                    {/* Section des filtres améliorée */}
                     <div className="card mb-4">
                         <div className="card-header">
                             <h5 className="mb-0">
@@ -613,59 +692,78 @@ function CadresList() {
                                     </Form.Group>
                                 </div>
 
-                                {/* Filtre Entité */}
-                                <div className="col-md-2">
-                                    <Form.Group>
-                                        <Form.Label>Entité</Form.Label>
-                                        <Form.Select
-                                            value={filterEntite}
-                                            onChange={(e) => setFilterEntite(e.target.value)}
-                                        >
-                                            <option value="">Toutes</option>
-                                            <option value="Service">Service</option>
-                                            <option value="Escadron">Escadron</option>
-                                            <option value="None">Aucune</option>
-                                        </Form.Select>
-                                    </Form.Group>
-                                </div>
+                                {/* Filtre Entité - masqué pour STANDARD */}
+                                {!isStandard && (
+                                    <div className="col-md-2">
+                                        <Form.Group>
+                                            <Form.Label>Entité</Form.Label>
+                                            <Form.Select
+                                                value={filterEntite}
+                                                onChange={(e) => setFilterEntite(e.target.value)}
+                                            >
+                                                <option value="">Toutes</option>
+                                                <option value="Service">Service</option>
+                                                <option value="Escadron">Escadron</option>
+                                                <option value="None">Aucune</option>
+                                            </Form.Select>
+                                        </Form.Group>
+                                    </div>
+                                )}
 
-                                {/* Filtre Service */}
-                                <div className="col-md-2">
-                                    <Form.Group>
-                                        <Form.Label>Service</Form.Label>
-                                        <Form.Select
-                                            value={filterService}
-                                            onChange={(e) => setFilterService(e.target.value)}
-                                            disabled={servicesLoading}
-                                        >
-                                            <option value="">Tous</option>
-                                            {allServices.map(service => (
-                                                <option key={service} value={service}>{service}</option>
-                                            ))}
-                                        </Form.Select>
-                                        {servicesError && <small className="text-danger">{servicesError}</small>}
-                                    </Form.Group>
-                                </div>
+                                {/* Filtre Service - masqué pour STANDARD */}
+                                {!isStandard && (
+                                    <div className="col-md-2">
+                                        <Form.Group>
+                                            <Form.Label>Service</Form.Label>
+                                            <Form.Select
+                                                value={filterService}
+                                                onChange={(e) => setFilterService(e.target.value)}
+                                                disabled={servicesLoading}
+                                            >
+                                                <option value="">Tous</option>
+                                                {allServices.map(service => (
+                                                    <option key={service} value={service}>{service}</option>
+                                                ))}
+                                            </Form.Select>
+                                            {servicesError && <small className="text-danger">{servicesError}</small>}
+                                        </Form.Group>
+                                    </div>
+                                )}
 
-                                {/* Filtre Escadron */}
-                                <div className="col-md-2">
-                                    <Form.Group>
-                                        <Form.Label>Escadron</Form.Label>
-                                        <Form.Select
-                                            value={filterEscadron}
-                                            onChange={(e) => setFilterEscadron(e.target.value)}
-                                        >
-                                            <option value="">Tous</option>
-                                            {allEscadrons.map(escadron => (
-                                                <option key={escadron.id} value={escadron.id}>
-                                                    {escadron.nom}
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </div>
+                                {/* Filtre Escadron - masqué pour STANDARD */}
+                                {!isStandard && (
+                                    <div className="col-md-2">
+                                        <Form.Group>
+                                            <Form.Label>Escadron</Form.Label>
+                                            <Form.Select
+                                                value={filterEscadron}
+                                                onChange={(e) => setFilterEscadron(e.target.value)}
+                                            >
+                                                <option value="">Tous</option>
+                                                {allEscadrons.map(escadron => (
+                                                    <option key={escadron.id} value={escadron.id}>
+                                                        {escadron.nom}
+                                                    </option>
+                                                ))}
+                                            </Form.Select>
+                                        </Form.Group>
+                                    </div>
+                                )}
 
-                                {/* Filtre Cours */}
+                                {/* Affichage pour STANDARD */}
+                                {isStandard && (
+                                    <div className="col-md-4">
+                                        <Alert variant="info" className="mb-0">
+                                            <small>
+                                                <FaInfoCircle className="me-1" />
+                                                Filtres automatiques : {user?.service && `Service: ${user.service}`}
+                                                {user?.escadron_name && ` | Escadron: ${user.escadron_name}`}
+                                            </small>
+                                        </Alert>
+                                    </div>
+                                )}
+
+                                {/* Filtre Cours - pour tous */}
                                 <div className="col-md-1">
                                     <Form.Group>
                                         <Form.Label>Cours</Form.Label>
@@ -674,13 +772,20 @@ function CadresList() {
                                             placeholder="ID"
                                             value={filterCours}
                                             onChange={(e) => setFilterCours(e.target.value)}
+                                            disabled={isStandard}
                                         />
                                     </Form.Group>
                                 </div>
 
                                 {/* Boutons d'action */}
                                 <div className="col-md-2 d-flex align-items-end gap-1">
-                                    <Button variant="outline-secondary" size="sm" onClick={handleResetFilters} title="Réinitialiser">
+                                    <Button
+                                        variant="outline-secondary"
+                                        size="sm"
+                                        onClick={handleResetFilters}
+                                        title="Réinitialiser"
+                                        disabled={isStandard}
+                                    >
                                         <FaTimes />
                                     </Button>
                                     <Button
@@ -737,12 +842,11 @@ function CadresList() {
                                     <thead className="table-dark">
                                         <tr>
                                             <th>#</th>
-
                                             <th>Grade</th>
                                             <th>Nom</th>
                                             <th>Prénom</th>
                                             <th>Matricule</th>
-                                            <th>Date de nom...</th>
+                                            <th>Date de nom.</th>
                                             <th>Entité</th>
                                             <th>Service</th>
                                             <th>Escadron</th>
@@ -754,7 +858,6 @@ function CadresList() {
                                         {paginationData.currentItems.map((cadre, index) => (
                                             <tr key={cadre.id || index}>
                                                 <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-
                                                 <td>
                                                     <span className="badge bg-secondary">{cadre.grade || '-'}</span>
                                                 </td>
@@ -779,19 +882,28 @@ function CadresList() {
                                                         <Button
                                                             variant="warning"
                                                             size="sm"
+                                                            onClick={() => handleHistorique(cadre)}
+                                                            title="Historique d'absence (consultation)"
+                                                        >
+                                                            <FaHistory />
+                                                        </Button>
+                                                        {/* ✅ CORRIGÉ : Boutons de modification avec permissions */}
+                                                        <RoleBasedButton
+                                                            variant="warning"
+                                                            size="sm"
                                                             onClick={() => handleEdit(cadre)}
                                                             title="Modifier"
-                                                        >
-                                                            <FaEdit />
-                                                        </Button>
-                                                        <Button
+                                                            canAccess={canModifyCadre(cadre)}
+                                                            icon={<FaEdit />}
+                                                        />
+                                                        <RoleBasedButton
                                                             variant="danger"
                                                             size="sm"
-                                                            onClick={() => handleDelete(cadre.id)}
+                                                            onClick={() => handleDelete(cadre)}
                                                             title="Supprimer"
-                                                        >
-                                                            <FaTrash />
-                                                        </Button>
+                                                            canAccess={canModifyCadre(cadre)}
+                                                            icon={<FaTrash />}
+                                                        />
                                                     </div>
                                                 </td>
                                             </tr>
@@ -842,46 +954,30 @@ function CadresList() {
                             <p className="mb-0">
                                 {searchTerm || filterEntite || filterService || filterEscadron || filterCours
                                     ? 'Aucun cadre ne correspond aux critères de recherche.'
-                                    : 'La liste des cadres est vide.'
-                                }
+                                    : 'Aucun cadre disponible.'}
                             </p>
                         </div>
                     )}
 
-                    {/* MISE À JOUR : Modal d'édition avec photo */}
+                    {/* Modal d'édition */}
                     <Modal show={showEditModal} onHide={() => setShowEditModal(false)} size="lg">
                         <Modal.Header closeButton>
-                            <Modal.Title>Modifier le cadre</Modal.Title>
+                            <Modal.Title>
+                                <FaEdit className="me-2" />
+                                Modifier le cadre
+                            </Modal.Title>
                         </Modal.Header>
                         <Modal.Body>
                             {editError && <div className="alert alert-danger">{editError}</div>}
                             <Form>
                                 <div className="row">
                                     <div className="col-md-4">
-                                        {/* NOUVEAU : Section photo */}
-                                        <div className="text-center mb-3">
-                                            <img
-                                                src={editFormData.photo_url || '/default-avatar.png'}
-                                                alt="Photo du cadre"
-                                                className="rounded-circle mb-2"
-                                                style={{ width: '120px', height: '120px', objectFit: 'cover' }}
-                                                onError={(e) => {
-                                                    e.target.src = '/default-avatar.png';
-                                                }}
-                                            />
-                                            <Form.Group>
-                                                <Form.Label>
-                                                    <FaImage className="me-1" />
-                                                    URL de la photo
-                                                </Form.Label>
-                                                <Form.Control
-                                                    type="url"
-                                                    placeholder="https://exemple.com/photo.jpg"
-                                                    value={editFormData.photo_url}
-                                                    onChange={(e) => setEditFormData({...editFormData, photo_url: e.target.value})}
-                                                />
-                                            </Form.Group>
-                                        </div>
+                                        <PhotoUpload
+                                            currentPhotoUrl={editFormData.photo_url}
+                                            onPhotoUpdate={handlePhotoUpdate}
+                                            entityType="cadre"
+                                            entityId={editFormData.id}
+                                        />
                                     </div>
                                     <div className="col-md-8">
                                         <div className="row">
@@ -931,16 +1027,17 @@ function CadresList() {
                                     </div>
                                 </div>
 
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Fonction</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        value={editFormData.fonction}
-                                        onChange={(e) => setEditFormData({...editFormData, fonction: e.target.value})}
-                                    />
-                                </Form.Group>
-
                                 <div className="row">
+                                    <div className="col-md-4">
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Fonction</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                value={editFormData.fonction}
+                                                onChange={(e) => setEditFormData({...editFormData, fonction: e.target.value})}
+                                            />
+                                        </Form.Group>
+                                    </div>
                                     <div className="col-md-4">
                                         <Form.Group className="mb-3">
                                             <Form.Label>Entité</Form.Label>
@@ -948,145 +1045,191 @@ function CadresList() {
                                                 value={editFormData.entite}
                                                 onChange={(e) => setEditFormData({...editFormData, entite: e.target.value})}
                                             >
-                                                <option value="None">Aucun</option>
+                                                <option value="">Sélectionner</option>
                                                 <option value="Service">Service</option>
                                                 <option value="Escadron">Escadron</option>
                                             </Form.Select>
                                         </Form.Group>
                                     </div>
                                     <div className="col-md-4">
-                                        {editFormData.entite === 'Service' && (
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Service</Form.Label>
-                                                <Form.Select
-                                                    value={editFormData.service}
-                                                    onChange={(e) => setEditFormData({...editFormData, service: e.target.value})}
-                                                >
-                                                    <option value="">Sélectionner</option>
-                                                    {allServices.map(service => (
-                                                        <option key={service} value={service}>{service}</option>
-                                                    ))}
-                                                </Form.Select>
-                                            </Form.Group>
-                                        )}
-                                        {editFormData.entite === 'Escadron' && (
-                                            <Form.Group className="mb-3">
-                                                <Form.Label>Cours (ID Escadron)</Form.Label>
-                                                <Form.Control
-                                                    type="number"
-                                                    value={editFormData.cours || ''}
-                                                    onChange={(e) => setEditFormData({...editFormData, cours: parseInt(e.target.value) || null})}
-                                                />
-                                            </Form.Group>
-                                        )}
-                                    </div>
-                                    <div className="col-md-4">
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Sexe</Form.Label>
-                                            <Form.Select
-                                                value={editFormData.sexe}
-                                                onChange={(e) => setEditFormData({...editFormData, sexe: e.target.value})}
-                                            >
-                                                <option value="">Sélectionner</option>
-                                                <option value="Masculin">Masculin</option>
-                                                <option value="Féminin">Féminin</option>
-                                                <option value="Autre">Autre</option>
-                                            </Form.Select>
+                                            <Form.Label>Service</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                value={editFormData.service}
+                                                onChange={(e) => setEditFormData({...editFormData, service: e.target.value})}
+                                            />
                                         </Form.Group>
                                     </div>
                                 </div>
 
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Numéro de téléphone</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        value={editFormData.numero_telephone}
-                                        onChange={(e) => setEditFormData({...editFormData, numero_telephone: e.target.value})}
-                                    />
-                                </Form.Group>
+                                <div className="row">
+                                    <div className="col-md-6">
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Téléphone</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                value={editFormData.numero_telephone}
+                                                onChange={(e) => setEditFormData({...editFormData, numero_telephone: e.target.value})}
+                                            />
+                                        </Form.Group>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Email</Form.Label>
+                                            <Form.Control
+                                                type="email"
+                                                value={editFormData.email}
+                                                onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                            />
+                                        </Form.Group>
+                                    </div>
+                                </div>
                             </Form>
                         </Modal.Body>
                         <Modal.Footer>
                             <Button variant="secondary" onClick={() => setShowEditModal(false)}>
                                 Annuler
                             </Button>
-                            <Button variant="primary" onClick={handleEditSubmit} disabled={editLoading}>
-                                {editLoading ? 'Mise à jour...' : 'Mettre à jour'}
+                            <Button variant="primary" onClick={handleSaveEdit} disabled={editLoading}>
+                                {editLoading ? 'Enregistrement...' : 'Enregistrer'}
                             </Button>
                         </Modal.Footer>
                     </Modal>
 
-                    {/* MISE À JOUR : Modal de détail avec photo */}
+                    {/* Modal de détail amélioré avec onglets */}
                     <Modal show={showDetailModal} onHide={() => setShowDetailModal(false)} size="lg">
                         <Modal.Header closeButton>
-                            <Modal.Title>Détails du cadre</Modal.Title>
+                            <Modal.Title>
+                                <FaUser className="me-2" />
+                                Détails du cadre
+                            </Modal.Title>
                         </Modal.Header>
                         <Modal.Body ref={detailModalBodyRef}>
                             {cadreToDetail && (
                                 <div className="container-fluid">
-                                    <div className="row">
-                                        <div className="col-md-3 text-center">
-                                            {/* NOUVEAU : Photo dans la modale de détails */}
-                                            <img
-                                                src={cadreToDetail.photo_url || '/default-avatar.png'}
-                                                alt={`${cadreToDetail.nom} ${cadreToDetail.prenom}`}
-                                                className="rounded-circle mb-3"
-                                                style={{ width: '150px', height: '150px', objectFit: 'cover' }}
-                                                onError={(e) => {
-                                                    e.target.src = '/default-avatar.png';
-                                                }}
-                                            />
-                                            <h5>{cadreToDetail.grade} {cadreToDetail.nom} {cadreToDetail.prenom}</h5>
+                                    {/* Navigation par onglets */}
+                                    <Nav variant="tabs" className="mb-3">
+                                        <Nav.Item>
+                                            <Nav.Link
+                                                active={activeDetailTab === 'informations'}
+                                                onClick={() => setActiveDetailTab('informations')}
+                                            >
+                                                <FaUser className="me-1" />
+                                                Informations
+                                            </Nav.Link>
+                                        </Nav.Item>
+                                        <Nav.Item>
+                                            <Nav.Link
+                                                active={activeDetailTab === 'historique'}
+                                                onClick={() => setActiveDetailTab('historique')}
+                                            >
+                                                <FaCalendarAlt className="me-1" />
+                                                Historique d'absence
+                                            </Nav.Link>
+                                        </Nav.Item>
+                                    </Nav>
+
+                                    {/* Contenu des onglets */}
+                                    {activeDetailTab === 'informations' && (
+                                        <div className="row">
+                                            <div className="col-md-3 text-center">
+                                                <img
+                                                    src={getPhotoUrl(cadreToDetail.photo_url)}
+                                                    alt={`${cadreToDetail.nom} ${cadreToDetail.prenom}`}
+                                                    className="rounded-circle mb-3"
+                                                    style={{ width: '150px', height: '150px', objectFit: 'cover' }}
+                                                    onError={(e) => {
+                                                        console.log('❌ Erreur chargement image pour:', cadreToDetail.nom, cadreToDetail.prenom);
+                                                        console.log('❌ URL tentée:', e.target.src);
+                                                        e.target.src = '/default-avatar.png';
+                                                    }}
+                                                />
+                                                <h5>{cadreToDetail.grade} {cadreToDetail.nom} {cadreToDetail.prenom}</h5>
+                                            </div>
+                                            <div className="col-md-4">
+                                                <h5>Informations personnelles</h5>
+                                                <p><strong>Nom :</strong> {cadreToDetail.nom || '-'}</p>
+                                                <p><strong>Prénom :</strong> {cadreToDetail.prenom || '-'}</p>
+                                                <p><strong>Grade :</strong> {cadreToDetail.grade || '-'}</p>
+                                                <p><strong>Matricule :</strong> {cadreToDetail.matricule || '-'}</p>
+                                                <p><strong>Sexe :</strong> {cadreToDetail.sexe || '-'}</p>
+                                                <p><strong>Date de naissance :</strong> {cadreToDetail.date_naissance || '-'}</p>
+                                                <p><strong>Statut matrimonial :</strong> {cadreToDetail.statut_matrimonial || '-'}</p>
+                                                <p><strong>Nombre d'enfants :</strong> {cadreToDetail.nombre_enfants || 0}</p>
+                                                <p><strong>Email :</strong> {cadreToDetail.email || '-'}</p>
+                                            </div>
+                                            <div className="col-md-5">
+                                                <h5>Informations professionnelles</h5>
+                                                <p><strong>Fonction :</strong> {cadreToDetail.fonction || '-'}</p>
+                                                <p><strong>Entité :</strong> {cadreToDetail.entite || '-'}</p>
+                                                <p><strong>Service :</strong> {cadreToDetail.service || '-'}</p>
+                                                <p><strong>Escadron :</strong> {cadreToDetail.EscadronResponsable?.nom || '-'}</p>
+                                                <p><strong>Téléphone :</strong> {cadreToDetail.numero_telephone || '-'}</p>
+                                                <p><strong>Date de nomination :</strong> {cadreToDetail.date_nomination || '-'}</p>
+                                                <p><strong>Date de séjour EGNA :</strong> {cadreToDetail.date_sejour_egna || '-'}</p>
+                                                {cadreToDetail.date_sejour_egna && (
+                                                    <p><strong>Durée de service :</strong> {calculateDuration(cadreToDetail.date_sejour_egna)}</p>
+                                                )}
+                                                <div className="d-flex align-items-center">
+                                                    <p className="mb-0"><strong>Statut actuel :</strong></p>
+                                                    <span className={`badge ms-2 ${
+                                                        cadreToDetail.statut_absence === 'Présent' ? 'bg-success' :
+                                                        cadreToDetail.statut_absence === 'Absent' ? 'bg-danger' :
+                                                        cadreToDetail.statut_absence === 'Indisponible' ? 'bg-warning' :
+                                                        'bg-secondary'
+                                                    }`}>
+                                                        {cadreToDetail.statut_absence || 'Présent'}
+                                                    </span>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-primary"
+                                                        className="ms-2"
+                                                        onClick={() => handleHistorique(cadreToDetail)}
+                                                    >
+                                                        <FaHistory className="me-1" />
+                                                        Historique
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="col-md-4">
-                                            <h5>Informations personnelles</h5>
-                                            <p><strong>Nom :</strong> {cadreToDetail.nom || '-'}</p>
-                                            <p><strong>Prénom :</strong> {cadreToDetail.prenom || '-'}</p>
-                                            <p><strong>Grade :</strong> {cadreToDetail.grade || '-'}</p>
-                                            <p><strong>Matricule :</strong> {cadreToDetail.matricule || '-'}</p>
-                                            <p><strong>Sexe :</strong> {cadreToDetail.sexe || '-'}</p>
-                                            <p><strong>Date de naissance :</strong> {cadreToDetail.date_naissance || '-'}</p>
-                                            <p><strong>Statut matrimonial :</strong> {cadreToDetail.statut_matrimonial || '-'}</p>
-                                            <p><strong>Nombre d'enfants :</strong> {cadreToDetail.nombre_enfants || 0}</p>
-                                            <p><strong>Email :</strong> {cadreToDetail.email || '-'}</p>
+                                    )}
+
+                                    {activeDetailTab === 'historique' && (
+                                        <div>
+                                            <h5>Historique des absences</h5>
+                                            <p className="text-muted">Cliquez sur le bouton "Historique d'absence" pour voir le détail complet</p>
+                                            <Button
+                                                variant="primary"
+                                                onClick={() => handleHistorique(cadreToDetail)}
+                                            >
+                                                <FaHistory className="me-1" />
+                                                Voir l'historique complet
+                                            </Button>
                                         </div>
-                                        <div className="col-md-5">
-                                            <h5>Informations professionnelles</h5>
-                                            <p><strong>Fonction :</strong> {cadreToDetail.fonction || '-'}</p>
-                                            <p><strong>Entité :</strong> {cadreToDetail.entite || '-'}</p>
-                                            <p><strong>Service :</strong> {cadreToDetail.service || '-'}</p>
-                                            <p><strong>Escadron :</strong> {cadreToDetail.EscadronResponsable?.nom || '-'}</p>
-                                            <p><strong>Téléphone :</strong> {cadreToDetail.numero_telephone || '-'}</p>
-                                            <p><strong>Date de nomination :</strong> {cadreToDetail.date_nomination || '-'}</p>
-                                            <p><strong>Date de séjour EGNA :</strong> {cadreToDetail.date_sejour_egna || '-'}</p>
-                                            {cadreToDetail.date_sejour_egna && (
-                                                <p><strong>Durée de service :</strong> {calculateDuration(cadreToDetail.date_sejour_egna)}</p>
-                                            )}
-                                            <p><strong>Statut :</strong>
-                                                <span className={`badge ms-1 ${
-                                                    cadreToDetail.statut_absence === 'Présent' ? 'bg-success' :
-                                                    cadreToDetail.statut_absence === 'Absent' ? 'bg-danger' :
-                                                    cadreToDetail.statut_absence === 'Indisponible' ? 'bg-warning' :
-                                                    'bg-secondary'
-                                                }`}>
-                                                    {cadreToDetail.statut_absence || 'Présent'}
-                                                </span>
-                                            </p>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
                         </Modal.Body>
-                        <Modal.Footer>
-                            <Button variant="primary" onClick={handlePrintDetail}>
-                                <FaPrint className="me-1" />
-                                Exporter PDF
-                            </Button>
+                        <Modal.Footer className="no-print">
                             <Button variant="secondary" onClick={() => setShowDetailModal(false)}>
                                 Fermer
                             </Button>
+                            <Button variant="primary" onClick={handleExportFicheIndividuelle}>
+                                <FaFilePdf className="me-1" />
+                                Exporter en PDF
+                            </Button>
                         </Modal.Footer>
                     </Modal>
+
+                    {/* Modal historique d'absence */}
+                    {showHistoriqueModal && cadreForHistorique && (
+                        <HistoriqueAbsenceModal
+                            show={showHistoriqueModal}
+                            onHide={() => setShowHistoriqueModal(false)}
+                            cadre={cadreForHistorique}
+                        />
+                    )}
                 </div>
             </div>
         </div>

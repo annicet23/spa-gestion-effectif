@@ -69,25 +69,30 @@ function MisesAJourSousMenu1Page() {
   const [servicesList, setServicesList] = useState([]);
   const [escadronsList, setEscadronsList] = useState([]);
 
-  // Fonction pour déterminer l'endpoint selon le rôle
+  // 🔍 DÉBOGAGE INITIAL
+  console.log('🔧 DEBUG - Environment variables:');
+  console.log('   API_BASE_URL:', API_BASE_URL);
+  console.log('   User:', user);
+  console.log('   Token present:', !!token);
+
+  // ✅ FONCTION POUR DÉTERMINER L'ENDPOINT SELON LE RÔLE
   const getCadresEndpoint = useCallback(() => {
     if (user?.role === 'Consultant') {
-      return `${API_BASE_URL}api/cadres/all`; // Nouveau endpoint pour consultants
+      return `${API_BASE_URL}api/cadres/all`;
     } else {
-      return `${API_BASE_URL}api/cadres`; // Endpoint standard pour utilisateurs Standard
+      return `${API_BASE_URL}api/cadres`;
     }
   }, [user?.role]);
 
-  // Vérification des droits d'accès
+  // ✅ VÉRIFICATION DES DROITS D'ACCÈS
   const canUpdateCadres = useMemo(() => {
     return user && (user.role === 'Standard' || user.role === 'Consultant');
   }, [user]);
 
-  // Filtrage des cadres basé sur la recherche et les filtres d'entité
+  // ✅ FILTRAGE DES CADRES
   const filteredCadresList = useMemo(() => {
     let filtered = [...allCadresList];
 
-    // Filtre par terme de recherche
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase().trim();
       filtered = filtered.filter(cadre =>
@@ -98,17 +103,14 @@ function MisesAJourSousMenu1Page() {
       );
     }
 
-    // Filtre par entité
     if (filterEntite) {
       filtered = filtered.filter(cadre => cadre.entite === filterEntite);
     }
 
-    // Filtre par service
     if (filterService) {
       filtered = filtered.filter(cadre => cadre.service === filterService);
     }
 
-    // Filtre par escadron
     if (filterEscadron) {
       filtered = filtered.filter(cadre =>
         cadre.EscadronResponsable?.nom === filterEscadron ||
@@ -119,33 +121,12 @@ function MisesAJourSousMenu1Page() {
     return filtered;
   }, [allCadresList, searchTerm, filterEntite, filterService, filterEscadron]);
 
-  // Extraction des listes uniques pour les filtres
-  useEffect(() => {
-    if (allCadresList.length > 0) {
-      // Services uniques
-      const uniqueServices = [...new Set(
-        allCadresList
-          .filter(cadre => cadre.service && cadre.entite === 'Service')
-          .map(cadre => cadre.service)
-      )].sort();
-      setServicesList(uniqueServices);
-
-      // Escadrons uniques
-      const uniqueEscadrons = [...new Set(
-        allCadresList
-          .filter(cadre => cadre.EscadronResponsable?.nom && cadre.entite === 'Escadron')
-          .map(cadre => cadre.EscadronResponsable.nom)
-      )].sort();
-      setEscadronsList(uniqueEscadrons);
-    }
-  }, [allCadresList]);
-
-  // Fonction pour gérer les messages avec useCallback
+  // ✅ FONCTION POUR GÉRER LES MESSAGES
   const updateMessage = useCallback((message) => {
     setGroupUpdateMessage(message);
   }, []);
 
-  // Fonction pour réinitialiser le formulaire
+  // ✅ FONCTION POUR RÉINITIALISER LE FORMULAIRE
   const resetForm = useCallback(() => {
     setSelectedCadreId('');
     setSelectedCadreData(null);
@@ -160,7 +141,7 @@ function MisesAJourSousMenu1Page() {
     setCadreHasActivePermission(false);
   }, []);
 
-  // Helper function to calculate the difference in days between two dates
+  // ✅ CALCUL DE LA DIFFÉRENCE EN JOURS
   const calculateDaysDifference = useCallback((startDate, endDate) => {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
@@ -172,15 +153,15 @@ function MisesAJourSousMenu1Page() {
     return diffDays;
   }, []);
 
-  // Calcul dynamique du total de jours de permission
+  // ✅ CALCUL DYNAMIQUE DU TOTAL DE JOURS DE PERMISSION
   const totalJoursPermission = useMemo(() => {
     return calculateDaysDifference(dateDepartPerm, dateArriveePerm);
   }, [dateDepartPerm, dateArriveePerm, calculateDaysDifference]);
 
-  // Helper function to calculate the start date based on the 16:00 rule
+  // ✅ CALCUL DE LA DATE DE DÉBUT SELON LA RÈGLE 16H
   const calculateCustomStartDate = useCallback(() => {
     if (!serverTime) {
-      console.warn("Server time not available yet, using local fallback");
+      console.warn("🔍 Server time not available yet, using local fallback");
       const fallbackDate = new Date();
       const currentHour = fallbackDate.getHours();
       if (currentHour < 16) {
@@ -203,13 +184,12 @@ function MisesAJourSousMenu1Page() {
     return `${year}-${month}-${day}`;
   }, [serverTime]);
 
-  // Validation du formulaire avec useMemo (simplifiée pour permissions)
+  // ✅ VALIDATION DU FORMULAIRE
   const isFormValid = useMemo(() => {
     if (!statutAbsence || !dateDebutAbsence || !motifAbsence) return false;
     if (motifAbsence === AUTRE_MOTIF_VALUE && !customMotif.trim()) return false;
     if (motifAbsence !== AUTRE_MOTIF_VALUE && MOTIFS_REQUIRING_OU.includes(motifAbsence) && !motifOuDetails.trim()) return false;
 
-    // Validation simplifiée pour les permissions
     if (motifAbsence === 'perm') {
       if (cadreHasActivePermission) return false;
       if (!dateDepartPerm || !dateArriveePerm) return false;
@@ -228,136 +208,14 @@ function MisesAJourSousMenu1Page() {
     dateArriveePerm
   ]);
 
-  // Récupération de l'heure du serveur
-  useEffect(() => {
-    const fetchServerTime = async () => {
-      setLoadingServerTime(true);
-      setServerTimeError(null);
-      try {
-        const response = await fetch(`${API_BASE_URL}api/server-time`);
-        if (!response.ok) {
-          throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        const data = await response.json();
-        setServerTime(new Date(data.serverTime));
-      } catch (error) {
-        console.error("Erreur lors de la récupération de l'heure du serveur:", error);
-        setServerTimeError("Impossible de récupérer l'heure du serveur. Utilisation de l'heure locale.");
-        setServerTime(new Date());
-      } finally {
-        setLoadingServerTime(false);
-      }
-    };
-    fetchServerTime();
-  }, []);
-
-  // Charger les cadres selon le rôle
-  useEffect(() => {
-    const fetchCadres = async () => {
-      if (!token || !canUpdateCadres) {
-        setLoadingCadresList(false);
-        setAllCadresList([]);
-        return;
-      }
-
-      setLoadingCadresList(true);
-      setErrorCadresList(null);
-
-      try {
-        const endpoint = getCadresEndpoint();
-        console.log(`Fetching cadres from: ${endpoint}`);
-
-        const response = await fetch(endpoint, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-        });
-
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({ message: `Erreur HTTP: ${response.status}` }));
-          throw new Error(errorBody.message || `Erreur réseau ou serveur, statut: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setAllCadresList(data);
-
-      } catch (error) {
-        console.error("Erreur lors du chargement de la liste des cadres:", error);
-        setErrorCadresList(`Impossible de charger la liste des cadres : ${error.message}`);
-        setAllCadresList([]);
-      } finally {
-        setLoadingCadresList(false);
-      }
-    };
-
-    fetchCadres();
-  }, [token, canUpdateCadres, getCadresEndpoint]);
-
-  // Vérifier si le cadre sélectionné a une permission active (simplifié)
-  useEffect(() => {
-    const checkCadrePermissionStatus = async () => {
-      if (!selectedCadreId || !token) {
-        setCadreHasActivePermission(false);
-        return;
-      }
-
-      setCheckingActivePermission(true);
-      try {
-        const activePermResponse = await fetch(`${API_BASE_URL}api/permissions/active/${selectedCadreId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-        });
-
-        if (!activePermResponse.ok) {
-          const errorBody = await activePermResponse.json().catch(() => ({}));
-          console.error("Erreur lors de la vérification de la permission active:", errorBody);
-          setCadreHasActivePermission(false);
-          if (activePermResponse.status !== 404) {
-            updateMessage({
-              type: 'warning',
-              text: `Impossible de vérifier le statut de permission. (${errorBody.message || activePermResponse.status})`
-            });
-          } else {
-            updateMessage(null);
-          }
-        } else {
-          const activePermData = await activePermResponse.json();
-          setCadreHasActivePermission(activePermData.hasActivePermission);
-          if (activePermData.hasActivePermission) {
-            updateMessage({
-              type: 'info',
-              text: 'Ce cadre a actuellement une permission active.'
-            });
-          } else {
-            updateMessage(null);
-          }
-        }
-
-      } catch (error) {
-        console.error("Erreur réseau lors de la vérification de la permission:", error);
-        setCadreHasActivePermission(false);
-        updateMessage({
-          type: 'warning',
-          text: `Erreur réseau lors de la vérification : ${error.message}`
-        });
-      } finally {
-        setCheckingActivePermission(false);
-      }
-    };
-
-    checkCadrePermissionStatus();
-  }, [selectedCadreId, token, updateMessage]);
-
-  const handleSelectCadre = (event) => {
+  // ✅ GESTIONNAIRES D'ÉVÉNEMENTS (NETTOYÉS)
+  const handleSelectCadre = useCallback((event) => {
     const cadreId = event.target.value;
+    console.log(`🔍 Cadre sélectionné: ${cadreId}`);
     setSelectedCadreId(cadreId);
 
     const cadre = filteredCadresList.find(c => c.id === parseInt(cadreId));
+    console.log(`🔍 Données cadre trouvées:`, cadre);
     setSelectedCadreData(cadre);
 
     // Reset form fields when a new cadre is selected
@@ -371,10 +229,11 @@ function MisesAJourSousMenu1Page() {
     setReferenceMessageDepart('');
     setCadreHasActivePermission(false);
     setGroupUpdateMessage(null);
-  };
+  }, [filteredCadresList]);
 
-  const handleMotifChange = (event) => {
+  const handleMotifChange = useCallback((event) => {
     const selectedMotif = event.target.value;
+    console.log(`🔍 Motif sélectionné: ${selectedMotif}`);
     setMotifAbsence(selectedMotif);
     setMotifOuDetails('');
     setCustomMotif('');
@@ -384,10 +243,11 @@ function MisesAJourSousMenu1Page() {
       setDateArriveePerm('');
       setReferenceMessageDepart('');
     }
-  };
+  }, []);
 
-  const handleStatutChange = (e) => {
+  const handleStatutChange = useCallback((e) => {
     const newStatut = e.target.value;
+    console.log(`🔍 Statut sélectionné: ${newStatut}`);
     setStatutAbsence(newStatut);
     setMotifAbsence('');
     setMotifOuDetails('');
@@ -397,37 +257,45 @@ function MisesAJourSousMenu1Page() {
     setReferenceMessageDepart('');
 
     if (newStatut === 'Indisponible' || newStatut === 'Absent') {
-      setDateDebutAbsence(calculateCustomStartDate());
+      const calculatedDate = calculateCustomStartDate();
+      console.log(`🔍 Date calculée: ${calculatedDate}`);
+      setDateDebutAbsence(calculatedDate);
     } else {
       setDateDebutAbsence('');
     }
-  };
+  }, [calculateCustomStartDate]);
 
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-    // Réinitialiser la sélection si le cadre sélectionné n'est plus dans les résultats filtrés
+  const handleSearchChange = useCallback((e) => {
+    const searchValue = e.target.value;
+    console.log(`🔍 Recherche: "${searchValue}"`);
+    setSearchTerm(searchValue);
+
     if (selectedCadreId) {
       const isStillVisible = filteredCadresList.some(cadre => cadre.id === parseInt(selectedCadreId));
       if (!isStillVisible) {
+        console.log(`🔍 Cadre sélectionné plus visible, reset`);
         setSelectedCadreId('');
         setSelectedCadreData(null);
         resetForm();
       }
     }
-  };
+  }, [selectedCadreId, filteredCadresList, resetForm]);
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
+    console.log(`🔍 Effacement recherche`);
     setSearchTerm('');
-  };
+  }, []);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
+    console.log(`🔍 Effacement filtres`);
     setFilterEntite('');
     setFilterService('');
     setFilterEscadron('');
     setSearchTerm('');
-  };
+  }, []);
 
-  const handleAddToTemporaryList = () => {
+  const handleAddToTemporaryList = useCallback(() => {
+    console.log(`🔍 Ajout à la liste temporaire`);
     setGroupUpdateMessage(null);
 
     if (!selectedCadreData || !statutAbsence) {
@@ -454,7 +322,6 @@ function MisesAJourSousMenu1Page() {
       return;
     }
 
-    // Validation spécifique pour la permission active
     if (motifAbsence === 'perm' && cadreHasActivePermission) {
       setGroupUpdateMessage({
         type: 'warning',
@@ -486,7 +353,6 @@ function MisesAJourSousMenu1Page() {
       timestamp_mise_a_jour_statut: timestampMiseAJour,
     };
 
-    // Ajouter les détails de permission simplifiés si nécessaire
     if (motifAbsence === 'perm' && !cadreHasActivePermission) {
       nouvelleMiseAJour.permissionDetails = {
         dateDepart: dateDepartPerm,
@@ -496,25 +362,44 @@ function MisesAJourSousMenu1Page() {
       };
     }
 
+    console.log(`🔍 Nouvelle mise à jour:`, nouvelleMiseAJour);
     setMisesAJourTemporaires([...misesAJourTemporaires, nouvelleMiseAJour]);
     setGroupUpdateMessage({
       type: 'success',
       text: `Mise à jour pour ${selectedCadreData.nom} ${selectedCadreData.prenom} ajoutée au tableau.`
     });
 
-    // Réinitialiser le formulaire après ajout
     resetForm();
-  };
+  }, [
+    selectedCadreData,
+    statutAbsence,
+    serverTime,
+    isFormValid,
+    motifAbsence,
+    cadreHasActivePermission,
+    misesAJourTemporaires,
+    dateDebutAbsence,
+    customMotif,
+    motifOuDetails,
+    dateDepartPerm,
+    dateArriveePerm,
+    totalJoursPermission,
+    referenceMessageDepart,
+    resetForm
+  ]);
 
-  const handleRemoveFromTemporaryList = (cadreIdToRemove) => {
+  const handleRemoveFromTemporaryList = useCallback((cadreIdToRemove) => {
+    console.log(`🔍 Suppression de la liste temporaire: ${cadreIdToRemove}`);
     setMisesAJourTemporaires(misesAJourTemporaires.filter(item => item.cadreId !== cadreIdToRemove));
     setGroupUpdateMessage({
       type: 'info',
       text: `Mise à jour pour le cadre retirée de la liste.`
     });
-  };
+  }, [misesAJourTemporaires]);
 
-  const handleGroupUpdate = async () => {
+  const handleGroupUpdate = useCallback(async () => {
+    console.log(`🔍 Début validation groupée de ${misesAJourTemporaires.length} éléments`);
+
     if (misesAJourTemporaires.length === 0) {
       setGroupUpdateMessage({
         type: 'info',
@@ -527,6 +412,7 @@ function MisesAJourSousMenu1Page() {
     setGroupUpdateMessage(null);
 
     const authToken = token || localStorage.getItem('token');
+    console.log(`🔍 Token pour validation:`, !!authToken);
 
     if (!authToken) {
       setGroupUpdateMessage({
@@ -537,7 +423,7 @@ function MisesAJourSousMenu1Page() {
       return;
     }
 
-    const updatePromises = misesAJourTemporaires.map(item => {
+    const updatePromises = misesAJourTemporaires.map((item, index) => {
       const payload = {
         statut_absence: item.statut_absence,
         date_debut_absence: item.date_debut_absence,
@@ -550,7 +436,11 @@ function MisesAJourSousMenu1Page() {
         payload.permissionDetails = item.permissionDetails;
       }
 
-      return fetch(`${API_BASE_URL}api/cadres/${item.cadreId}`, {
+      const updateUrl = `${API_BASE_URL}api/cadres/${item.cadreId}`;
+      console.log(`🔍 Update ${index + 1}/${misesAJourTemporaires.length} - URL: ${updateUrl}`);
+      console.log(`🔍 Payload:`, payload);
+
+      return fetch(updateUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -558,7 +448,20 @@ function MisesAJourSousMenu1Page() {
         },
         body: JSON.stringify(payload),
       }).then(async response => {
+        console.log(`🔍 Response ${index + 1} status: ${response.status}`);
+
         if (!response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('text/html')) {
+            const htmlText = await response.text();
+            console.log(`🔴 HTML Response pour ${item.matricule}:`, htmlText.substring(0, 200));
+            return {
+              success: false,
+              matricule: item.matricule,
+              message: `Erreur: L'API retourne du HTML au lieu de JSON (Status: ${response.status})`
+            };
+          }
+
           const errorData = await response.json().catch(() => ({}));
           return {
             success: false,
@@ -566,12 +469,16 @@ function MisesAJourSousMenu1Page() {
             message: errorData.message || `Erreur HTTP : ${response.status}`
           };
         }
+
+        const responseData = await response.json().catch(() => ({}));
+        console.log(`✅ Success ${index + 1}:`, responseData);
         return {
           success: true,
           matricule: item.matricule,
-          data: await response.json().catch(() => ({}))
+          data: responseData
         };
       }).catch(error => {
+        console.log(`🔴 Network error ${index + 1}:`, error);
         return {
           success: false,
           matricule: item.matricule,
@@ -582,14 +489,16 @@ function MisesAJourSousMenu1Page() {
 
     try {
       const results = await Promise.allSettled(updatePromises);
+      console.log(`🔍 Résultats validation:`, results);
 
       let successCount = 0;
       let errorCount = 0;
       const errorMessages = [];
 
-      results.forEach(result => {
+      results.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value.success) {
           successCount++;
+          console.log(`✅ Success ${index + 1}:`, result.value.matricule);
         } else {
           errorCount++;
           const failedItem = misesAJourTemporaires.find(item =>
@@ -598,11 +507,12 @@ function MisesAJourSousMenu1Page() {
           const identifier = failedItem ?
             `${failedItem.matricule} (ID: ${failedItem.cadreId})` :
             (result.value?.matricule || 'un cadre');
-          errorMessages.push(
-            result.status === 'fulfilled' ?
-              `${identifier}: ${result.value.message}` :
-              `Échec requête pour ${identifier}: ${result.reason?.message || 'Erreur inconnue'}`
-          );
+          const errorMsg = result.status === 'fulfilled' ?
+            `${identifier}: ${result.value.message}` :
+            `Échec requête pour ${identifier}: ${result.reason?.message || 'Erreur inconnue'}`;
+
+          console.log(`🔴 Error ${index + 1}:`, errorMsg);
+          errorMessages.push(errorMsg);
         }
       });
 
@@ -620,7 +530,6 @@ function MisesAJourSousMenu1Page() {
         finalMessageType = successCount > 0 ? 'warning' : 'error';
       }
 
-      // Logique d'enregistrement de la soumission quotidienne
       if (successCount > 0 && user && (user.role === 'Standard' || user.role === 'Consultant')) {
         try {
           const submissionDate = new Date(serverTime);
@@ -635,7 +544,10 @@ function MisesAJourSousMenu1Page() {
             null;
 
           if (cadreIdForSubmission) {
-            const submitResponse = await fetch(`${API_BASE_URL}api/mises-a-jour/submit`, {
+            const submitUrl = `${API_BASE_URL}api/mises-a-jour/submit`;
+            console.log(`🔍 Soumission quotidienne URL: ${submitUrl}`);
+
+            const submitResponse = await fetch(submitUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -652,15 +564,14 @@ function MisesAJourSousMenu1Page() {
               const submitErrorBody = await submitResponse.json().catch(() => ({
                 message: `Erreur HTTP : ${submitResponse.status}`
               }));
-              console.error('Échec de l\'enregistrement de la soumission quotidienne :', submitErrorBody);
+              console.error('🔴 Échec soumission quotidienne:', submitErrorBody);
               finalMessageText += ` | Attention : Échec de l'enregistrement de la soumission quotidienne (${submitErrorBody.message || 'erreur inconnue'}).`;
               finalMessageType = finalMessageType === 'error' ? 'error' : 'warning';
             } else {
               const submitSuccessData = await submitResponse.json();
-              console.log('Soumission quotidienne enregistrée avec succès :', submitSuccessData);
+              console.log('✅ Soumission quotidienne enregistrée:', submitSuccessData);
               finalMessageText += ` | Soumission quotidienne enregistrée.`;
 
-              // Vider la liste temporaire seulement si TOUTES les updates ont réussi
               if (successCount === misesAJourTemporaires.length && errorCount === 0) {
                 setMisesAJourTemporaires([]);
                 resetForm();
@@ -668,7 +579,7 @@ function MisesAJourSousMenu1Page() {
             }
           }
         } catch (submitError) {
-          console.error('Erreur inattendue lors de l\'enregistrement de la soumission quotidienne :', submitError);
+          console.error('🔴 Erreur soumission quotidienne:', submitError);
           finalMessageText += ` | Attention : Erreur technique lors de l'enregistrement de la soumission quotidienne.`;
           finalMessageType = finalMessageType === 'error' ? 'error' : 'warning';
         }
@@ -677,7 +588,7 @@ function MisesAJourSousMenu1Page() {
       setGroupUpdateMessage({ type: finalMessageType, text: finalMessageText });
 
     } catch (error) {
-      console.error("Erreur inattendue lors de la validation groupée :", error);
+      console.error("🔴 Erreur inattendue validation groupée:", error);
       setGroupUpdateMessage({
         type: 'error',
         text: `Erreur inattendue lors de la validation groupée : ${error.message}`
@@ -685,7 +596,244 @@ function MisesAJourSousMenu1Page() {
     } finally {
       setLoadingGroupUpdate(false);
     }
-  };
+  }, [misesAJourTemporaires, token, user, serverTime, resetForm]);
+
+  // ✅ EXTRACTION DES LISTES UNIQUES POUR LES FILTRES
+  useEffect(() => {
+    if (allCadresList.length > 0) {
+      console.log(`🔍 Extraction des filtres à partir de ${allCadresList.length} cadres`);
+
+      const uniqueServices = [...new Set(
+        allCadresList
+          .filter(cadre => cadre.service && cadre.entite === 'Service')
+          .map(cadre => cadre.service)
+      )].sort();
+      console.log(`🔍 Services trouvés:`, uniqueServices);
+      setServicesList(uniqueServices);
+
+      const uniqueEscadrons = [...new Set(
+        allCadresList
+          .filter(cadre => cadre.EscadronResponsable?.nom && cadre.entite === 'Escadron')
+          .map(cadre => cadre.EscadronResponsable.nom)
+      )].sort();
+      console.log(`🔍 Escadrons trouvés:`, uniqueEscadrons);
+      setEscadronsList(uniqueEscadrons);
+    }
+  }, [allCadresList]);
+
+  // 🔍 RÉCUPÉRATION DE L'HEURE DU SERVEUR AVEC DÉBOGAGE
+  useEffect(() => {
+    const fetchServerTime = async () => {
+      setLoadingServerTime(true);
+      setServerTimeError(null);
+
+      const serverTimeUrl = `${API_BASE_URL}api/server-time`;
+      console.log(`🔍 Fetching server time from: ${serverTimeUrl}`);
+
+      try {
+        const response = await fetch(serverTimeUrl);
+        console.log(`🔍 Server time response status: ${response.status}`);
+
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        console.log(`🔍 Server time content-type: ${contentType}`);
+
+        if (!contentType || !contentType.includes('application/json')) {
+          const responseText = await response.text();
+          console.log(`🔴 Server time non-JSON response:`, responseText.substring(0, 200));
+          throw new Error(`L'API server-time retourne du ${contentType || 'contenu inconnu'} au lieu de JSON`);
+        }
+
+        const data = await response.json();
+        console.log(`✅ Server time data:`, data);
+        setServerTime(new Date(data.serverTime));
+      } catch (error) {
+        console.error("🔴 Erreur récupération heure serveur:", error);
+        setServerTimeError("Impossible de récupérer l'heure du serveur. Utilisation de l'heure locale.");
+        setServerTime(new Date());
+      } finally {
+        setLoadingServerTime(false);
+      }
+    };
+    fetchServerTime();
+  }, []);
+
+  // 🔍 CHARGER LES CADRES SELON LE RÔLE AVEC DÉBOGAGE COMPLET
+  useEffect(() => {
+    const fetchCadres = async () => {
+      console.log(`🔍 fetchCadres appelé - token: ${!!token}, canUpdateCadres: ${canUpdateCadres}`);
+
+      if (!token || !canUpdateCadres) {
+        console.log(`🔍 Pas de token ou droits insuffisants, arrêt`);
+        setLoadingCadresList(false);
+        setAllCadresList([]);
+        return;
+      }
+
+      setLoadingCadresList(true);
+      setErrorCadresList(null);
+
+      try {
+        const endpoint = getCadresEndpoint();
+        console.log(`🔍 Fetching cadres from: ${endpoint}`);
+        console.log(`🔑 Token présent: ${!!token}`);
+        console.log(`👤 User role: ${user?.role}`);
+        console.log(`🔧 API_BASE_URL: ${API_BASE_URL}`);
+
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+        });
+
+        console.log(`📊 Response status: ${response.status}`);
+        console.log(`📊 Response ok: ${response.ok}`);
+        console.log(`📊 Response statusText: ${response.statusText}`);
+
+        if (!response.ok) {
+          // ✅ DÉBOGAGE : Vérifier le contenu de la réponse
+          const contentType = response.headers.get('content-type');
+          console.log(`📄 Content-Type: ${contentType}`);
+
+          if (contentType && contentType.includes('text/html')) {
+            const htmlText = await response.text();
+            console.log(`🔴 HTML Response (first 500 chars):`, htmlText.substring(0, 500));
+
+            // Vérifier si c'est une page d'erreur spécifique
+            if (htmlText.includes('404') || htmlText.includes('Not Found')) {
+              throw new Error(`Endpoint non trouvé (404). Vérifiez que l'API est démarrée et que la route existe: ${endpoint}`);
+            } else if (htmlText.includes('401') || htmlText.includes('Unauthorized')) {
+              throw new Error(`Non autorisé (401). Problème d'authentification avec le token.`);
+            } else if (htmlText.includes('403') || htmlText.includes('Forbidden')) {
+              throw new Error(`Accès interdit (403). L'utilisateur n'a pas les droits pour accéder à cette ressource.`);
+            } else {
+              throw new Error(`L'endpoint retourne du HTML au lieu de JSON. Status: ${response.status}. Vérifiez que le serveur API est démarré.`);
+            }
+          }
+
+          const errorBody = await response.json().catch(() => ({
+            message: `Erreur HTTP: ${response.status}`
+          }));
+          throw new Error(errorBody.message || `Erreur réseau ou serveur, statut: ${response.status}`);
+        }
+
+        // ✅ VÉRIFIER LE CONTENT-TYPE AVANT DE PARSER
+        const contentType = response.headers.get('content-type');
+        console.log(`📄 Success Content-Type: ${contentType}`);
+
+        if (!contentType || !contentType.includes('application/json')) {
+          const responseText = await response.text();
+          console.log(`🔴 Non-JSON Success Response:`, responseText.substring(0, 500));
+          throw new Error(`L'API retourne du ${contentType || 'contenu inconnu'} au lieu de JSON`);
+        }
+
+        const data = await response.json();
+        console.log(`✅ Data received: ${Array.isArray(data) ? data.length : 'not array'} cadres`);
+        console.log(`✅ Sample data:`, Array.isArray(data) ? data.slice(0, 2) : data);
+
+        if (!Array.isArray(data)) {
+          console.log(`🔴 Data is not an array:`, typeof data, data);
+          throw new Error(`L'API ne retourne pas un tableau de cadres`);
+        }
+
+        setAllCadresList(data);
+
+      } catch (error) {
+        console.error("🔴 Erreur lors du chargement de la liste des cadres:", error);
+        setErrorCadresList(`Impossible de charger la liste des cadres : ${error.message}`);
+        setAllCadresList([]);
+      } finally {
+        setLoadingCadresList(false);
+      }
+    };
+
+    fetchCadres();
+  }, [token, canUpdateCadres, getCadresEndpoint, user?.role]);
+
+  // 🔍 VÉRIFIER LES PERMISSIONS ACTIVES AVEC DÉBOGAGE
+  useEffect(() => {
+    const checkCadrePermissionStatus = async () => {
+      console.log(`🔍 Vérification permission pour cadre: ${selectedCadreId}, token: ${!!token}`);
+
+      if (!selectedCadreId || !token) {
+        console.log(`🔍 Pas de cadre sélectionné ou token, skip permission check`);
+        setCadreHasActivePermission(false);
+        return;
+      }
+
+      setCheckingActivePermission(true);
+
+      const permissionUrl = `${API_BASE_URL}api/permissions/active/${selectedCadreId}`;
+      console.log(`🔍 Checking permission at: ${permissionUrl}`);
+
+      try {
+        const activePermResponse = await fetch(permissionUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+        });
+
+        console.log(`🔍 Permission response status: ${activePermResponse.status}`);
+
+        if (!activePermResponse.ok) {
+          if (activePermResponse.status === 404) {
+            console.log(`🔍 Aucune permission active trouvée (404)`);
+            setCadreHasActivePermission(false);
+            updateMessage(null);
+          } else {
+            const contentType = activePermResponse.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+              const htmlText = await activePermResponse.text();
+              console.log(`🔴 Permission HTML Response:`, htmlText.substring(0, 200));
+              setCadreHasActivePermission(false);
+              updateMessage({
+                type: 'warning',
+                text: `Erreur de vérification permission: L'API retourne du HTML (Status: ${activePermResponse.status})`
+              });
+            } else {
+              const errorBody = await activePermResponse.json().catch(() => ({}));
+              console.error("🔴 Erreur vérification permission:", errorBody);
+              setCadreHasActivePermission(false);
+              updateMessage({
+                type: 'warning',
+                text: `Impossible de vérifier le statut de permission. (${errorBody.message || activePermResponse.status})`
+              });
+            }
+          }
+        } else {
+          const activePermData = await activePermResponse.json();
+          console.log(`✅ Permission data:`, activePermData);
+          setCadreHasActivePermission(activePermData.hasActivePermission);
+          if (activePermData.hasActivePermission) {
+            updateMessage({
+              type: 'info',
+              text: 'Ce cadre a actuellement une permission active.'
+            });
+          } else {
+            updateMessage(null);
+          }
+        }
+      } catch (error) {
+        console.error("🔴 Erreur réseau vérification permission:", error);
+        setCadreHasActivePermission(false);
+        updateMessage({
+          type: 'warning',
+          text: `Erreur réseau lors de la vérification : ${error.message}`
+        });
+      } finally {
+        setCheckingActivePermission(false);
+      }
+    };
+
+    checkCadrePermissionStatus();
+  }, [selectedCadreId, token, updateMessage]);
 
   // Si l'utilisateur n'a pas les droits d'accès
   if (!canUpdateCadres) {
@@ -706,6 +854,9 @@ function MisesAJourSousMenu1Page() {
 
   return (
     <div className="container mt-4 mb-5">
+
+
+
       <div className="row mb-4">
         <div className="col-12">
           <div className="card border-primary">
@@ -744,7 +895,16 @@ function MisesAJourSousMenu1Page() {
               {errorCadresList && (
                 <div className="alert alert-danger">
                   <i className="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Erreur de chargement:</strong><br/>
                   {errorCadresList}
+                  <hr/>
+                  <small>
+                    <strong>Solutions possibles:</strong><br/>
+                    1. Vérifiez que votre serveur backend est démarré<br/>
+                    2. Vérifiez l'URL de l'API dans vos variables d'environnement<br/>
+                    3. Vérifiez que les routes API sont correctement définies<br/>
+                    4. Consultez les logs de la console pour plus de détails
+                  </small>
                 </div>
               )}
 
