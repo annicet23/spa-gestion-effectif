@@ -133,9 +133,11 @@ app.get('/api/server-time', (req, res) => {
 const UPLOAD_DIR_CHAT = path.join(__dirname, 'public', 'chat_uploads'); // Nouveau dossier pour les uploads de chat
 const UPLOAD_DIR_LIBRARY = path.join(__dirname, 'public', 'files'); // Dossier pour les fichiers de la bibliothèque
 const TEMP_UPLOAD_DIR = path.join(__dirname, 'public', 'temp_uploads'); // Dossier temporaire partagé si nécessaire
+// ✅ AJOUT - Dossier pour les photos des cadres
+const UPLOAD_DIR_CADRES = path.join(__dirname, 'uploads');
 
 // Assurez-vous que les répertoires d'upload existent
-[UPLOAD_DIR_CHAT, UPLOAD_DIR_LIBRARY, TEMP_UPLOAD_DIR].forEach(dir => {
+[UPLOAD_DIR_CHAT, UPLOAD_DIR_LIBRARY, TEMP_UPLOAD_DIR, UPLOAD_DIR_CADRES].forEach(dir => {
     if (!fs.existsSync(dir)) {
         console.log(`📁 Création du répertoire: ${dir}`);
         fs.mkdirSync(dir, { recursive: true });
@@ -169,6 +171,28 @@ const uploadChatFile = multer({
     }
 });
 
+// ✅ AJOUT - Configuration Multer pour les photos de cadres
+const cadrePhotoStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, UPLOAD_DIR_CADRES);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, `${uniqueSuffix}-${file.originalname}`);
+    }
+});
+
+const uploadCadrePhoto = multer({
+    storage: cadrePhotoStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    fileFilter: (req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Seuls les fichiers image sont autorisés.'));
+        }
+        cb(null, true);
+    }
+});
+
 // Route d'upload de fichier spécifique pour le chat
 // Cette route est appelée AVANT d'envoyer le message via WebSocket
 app.post('/api/chat/upload-file', uploadChatFile.single('chatFile'), (req, res) => {
@@ -191,6 +215,29 @@ app.post('/api/chat/upload-file', uploadChatFile.single('chatFile'), (req, res) 
     });
 });
 
+// ✅ NOUVELLE ROUTE - Upload de photo pour les cadres
+app.post('/api/upload/photo', uploadCadrePhoto.single('photo'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'Aucun fichier photo n\'a été uploadé.' });
+    }
+
+    const photoData = {
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        photo_url: `/uploads/${req.file.filename}`
+    };
+
+    console.log('✅ Photo uploadée avec succès:', photoData);
+
+    res.json({
+        message: 'Photo uploadée avec succès.',
+        photo_url: photoData.photo_url,
+        file: photoData
+    });
+});
+
 // Gérer les erreurs de Multer (par exemple, taille de fichier trop grande)
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
@@ -208,6 +255,9 @@ app.use((err, req, res, next) => {
 
 // Servir les fichiers uploadés du chat
 app.use('/chat_uploads', express.static(UPLOAD_DIR_CHAT));
+
+// ✅ AJOUT - Servir les photos des cadres
+app.use('/uploads', express.static(UPLOAD_DIR_CADRES));
 
 // ===== MIDDLEWARE DE DÉBOGAGE POUR LES FICHIERS DE BIBLIOTHÈQUE =====
 app.use('/files/*', (req, res, next) => {
@@ -372,6 +422,7 @@ app.use('/api/library-items', libraryRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/files', express.static(path.join(__dirname, 'public', 'files')));
 app.use('/api/organigramme', organigrammeRoutes);
+
 // --- POINT DE TERMINAISON POUR RÉCUPÉRER LA LISTE DES UTILISATEURS DU CHAT ---
 app.get('/api/chat/users', async (req, res) => {
     try {
@@ -667,8 +718,6 @@ app.get('/', (req, res) => {
     res.send('API backend pour la gestion des effectifs des cadres.');
 });
 
-
-
 //vita eto
 
 // --- ✅ GESTION COMPLÈTE DES CONNEXIONS SOCKET.IO ET MESSAGES ---
@@ -844,10 +893,8 @@ io.on('connection', (socket) => {
         const host = '0.0.0.0';
         const PORT = process.env.PORT || 3000;
 
-
-
         // Vérifier les dossiers
-        [UPLOAD_DIR_LIBRARY, UPLOAD_DIR_CHAT, TEMP_UPLOAD_DIR].forEach(dir => {
+        [UPLOAD_DIR_LIBRARY, UPLOAD_DIR_CHAT, TEMP_UPLOAD_DIR, UPLOAD_DIR_CADRES].forEach(dir => {
             console.log(`📂 ${path.basename(dir)}: ${fs.existsSync(dir) ? '✅ Existe' : '❌ Manquant'}`);
             if (fs.existsSync(dir)) {
                 try {
@@ -867,6 +914,7 @@ io.on('connection', (socket) => {
             console.log(`🌐 Accessible sur le réseau: ${API_BASE_URL}`);
             console.log(`📥 Fichiers bibliothèque: ${API_BASE_URL}/files/`);
             console.log(`💬 Fichiers chat: ${API_BASE_URL}/chat_uploads/`);
+            console.log(`📸 Photos cadres: ${API_BASE_URL}/uploads/`);
             console.log(`🔧 Debug files: ${API_BASE_URL}/api/debug/files`);
             console.log(`📋 Test API: ${API_BASE_URL}/api/test-file/FILENAME`);
             console.log(`⬇️ Téléchargement: ${API_BASE_URL}/api/download/FILENAME`);

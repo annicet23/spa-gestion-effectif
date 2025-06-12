@@ -160,7 +160,7 @@ router.get('/available-cadres', async (req, res) => {
 // ✅ ROUTE MODIFIÉE - POST /api/mises-a-jour/submit
 router.post('/submit', async (req, res) => {
   console.log('[MiseAJourRoutes] POST /submit - Début de la soumission de la mise à jour.');
-  const { update_date, target_cadre_id, commentaire } = req.body; // ✅ Ajout de target_cadre_id et commentaire
+  const { update_date, target_cadre_id, commentaire } = req.body;
 
   if (!update_date) {
     console.warn('[MiseAJourRoutes] POST /submit - Erreur: update_date est manquant.');
@@ -204,10 +204,10 @@ router.post('/submit', async (req, res) => {
       console.log(`[MiseAJourRoutes] POST /submit - Mise à jour par le responsable ${req.user.username}`);
     }
 
-    // ✅ MODIFICATION - Statut automatiquement "Validée" pour les consultants non-responsables
-    const status = isUpdatedByResponsible ? 'En attente' : 'Validée';
-    const validated_by_id = isUpdatedByResponsible ? null : req.user.id;
-    const validation_date = isUpdatedByResponsible ? null : new Date();
+    // ✅ MODIFICATION PRINCIPALE - TOUTES les mises à jour sont automatiquement validées
+    const status = 'Validée';  // ← Toujours validé
+    const validated_by_id = req.user.id;  // ← Auto-validation par l'utilisateur
+    const validation_date = new Date();  // ← Date immédiate
 
     const nouvelleSoumission = await MiseAJour.create({
       submitted_by_id: req.user.id,
@@ -222,7 +222,7 @@ router.post('/submit', async (req, res) => {
       commentaire: commentaire || null
     });
 
-    console.log(`[MiseAJourRoutes] POST /submit - Nouvelle soumission créée avec succès. ID: ${nouvelleSoumission.id}, Statut: ${nouvelleSoumission.status}, Fait par responsable: ${isUpdatedByResponsible}`);
+    console.log(`[MiseAJourRoutes] POST /submit - Nouvelle soumission créée et AUTO-VALIDÉE avec succès. ID: ${nouvelleSoumission.id}, Statut: ${nouvelleSoumission.status}`);
 
     const soumissionAvecDetails = await MiseAJour.findByPk(nouvelleSoumission.id, {
       include: [
@@ -232,24 +232,22 @@ router.post('/submit', async (req, res) => {
       ]
     });
 
-    // ✅ Déclencher la mise à jour des statuts si la soumission est validée
-    if (nouvelleSoumission.status === 'Validée') {
-      console.log(`[MiseAJourRoutes] POST /submit - La soumission est "Validée". Déclenchement de la mise à jour des statuts des personnes.`);
-      const cadreSoumetteur = soumissionAvecDetails.Cadre;
-      const dateMiseAJour = nouvelleSoumission.update_date;
+    // ✅ Déclencher IMMÉDIATEMENT la mise à jour des statuts (puisque toujours "Validée")
+    console.log(`[MiseAJourRoutes] POST /submit - Déclenchement IMMÉDIAT de la mise à jour des statuts des personnes.`);
+    const cadreSoumetteur = soumissionAvecDetails.Cadre;
+    const dateMiseAJour = nouvelleSoumission.update_date;
 
-      try {
-        const updateResult = await updateCadreStatuses(cadreSoumetteur, dateMiseAJour, '[MiseAJourRoutes] POST /submit');
-        console.log(`[MiseAJourRoutes] POST /submit - Résultat de la mise à jour: ${updateResult.message}`);
-      } catch (updateError) {
-        console.error('[MiseAJourRoutes] POST /submit - Erreur lors de la mise à jour des statuts:', updateError);
-        // Ne pas faire échouer la soumission si la mise à jour des statuts échoue
-      }
+    try {
+      const updateResult = await updateCadreStatuses(cadreSoumetteur, dateMiseAJour, '[MiseAJourRoutes] POST /submit');
+      console.log(`[MiseAJourRoutes] POST /submit - Résultat de la mise à jour: ${updateResult.message}`);
+    } catch (updateError) {
+      console.error('[MiseAJourRoutes] POST /submit - Erreur lors de la mise à jour des statuts:', updateError);
+      // Ne pas faire échouer la soumission si la mise à jour des statuts échoue
     }
 
     console.log('[MiseAJourRoutes] POST /submit - Fin de la soumission de la mise à jour avec succès.');
     return res.status(201).json({
-      message: 'Mise à jour soumise avec succès',
+      message: 'Mise à jour soumise et validée automatiquement avec succès',
       soumission: soumissionAvecDetails
     });
 
@@ -352,7 +350,7 @@ router.get('/daily-updates', async (req, res) => {
       where: whereClause,
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
-        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ],
@@ -483,7 +481,7 @@ router.get('/', async (req, res) => {
       where: whereClause,
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
-        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ],
@@ -506,7 +504,7 @@ router.get('/:id', async (req, res) => {
     const soumission = await MiseAJour.findByPk(submissionId, {
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
-        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ]
@@ -592,7 +590,7 @@ router.post('/:id/validate', isAdmin, async (req, res) => {
     const soumissionValidee = await MiseAJour.findByPk(soumission.id, {
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username', 'nom', 'prenom'] },
-        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username', 'nom', 'prenom'], required: false }
       ]
@@ -706,7 +704,7 @@ router.post('/validate-batch', isAdmin, async (req, res) => {
       where: { id: { [Op.in]: soumissions.map(s => s.id) } },
       include: [
         { model: User, as: 'SubmittedBy', attributes: ['id', 'username'] },
-        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] }, // ✅ AJOUTÉ
+        { model: User, as: 'ActualUpdater', attributes: ['id', 'username', 'nom', 'prenom', 'grade'] },
         { model: Cadre, as: 'Cadre', attributes: ['id', 'service', 'fonction', 'responsibility_scope', 'responsible_escadron_id'] },
         { model: User, as: 'ValidatedBy', attributes: ['id', 'username'], required: false }
       ]
@@ -748,7 +746,6 @@ router.get('/cadres/summary', async (req, res) => {
     console.log(`[MiseAJourRoutes] [DEBUG_SUMMARY] Comparaison: "${req.query.date}" === "${currentHistoricalDateLabel}" ? ${req.query.date === currentHistoricalDateLabel}`);
 
     let stats;
-
     if (date === currentHistoricalDateLabel) {
       console.log(`[MiseAJourRoutes] [DEBUG_SUMMARY] Condition VRAIE: Requête pour la journée historique actuelle (${date}). Calcul des stats en temps réel.`);
       const realTimeStats = await calculateCurrentAggregateStats();
@@ -807,7 +804,7 @@ router.get('/users/:userId/submissions', async (req, res) => {
     return res.status(400).json({ message: 'Le paramètre "date" est requis dans la chaîne de requête.' });
   }
 
-  if (req.user.role !== 'Admin' && req.user.role !== 'Consultant' && req.user.id !== targetUserId) { // ✅ AJOUTÉ CONSULTANT
+  if (req.user.role !== 'Admin' && req.user.role !== 'Consultant' && req.user.id !== targetUserId) {
     console.warn(`[MiseAJourRoutes] GET /users/:userId/submissions - Utilisateur ${req.user.username} (ID: ${req.user.id}, Rôle: ${req.user.role}) a tenté d'accéder aux soumissions de l'utilisateur ${targetUserId} sans permission.`);
     return res.status(403).json({ message: 'Vous n\'êtes pas autorisé à voir les soumissions de cet utilisateur.' });
   }
@@ -841,7 +838,7 @@ router.get('/users/:userId/submissions', async (req, res) => {
         },
         {
           model: User,
-          as: 'ActualUpdater', // ✅ AJOUTÉ
+          as: 'ActualUpdater',
           attributes: ['id', 'username', 'nom', 'prenom', 'grade'],
           required: false
         },

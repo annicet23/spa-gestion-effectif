@@ -3,17 +3,13 @@ const express = require('express');
 const router = express.Router();
 const { Cadre, Escadron } = require('../models');
 const { Op } = require('sequelize');
+const { authenticateJWT } = require('../middleware/authMiddleware');
 
-// ✅ Middleware d'authentification optionnelle pour les tests
-const optionalAuth = (req, res, next) => {
-  console.log('Middleware optionalAuth appelé');
-  // Pour les tests, on utilise un utilisateur par défaut
-  req.user = { id: 1, matricule: 'admin' };
-  next();
-};
+// ✅ Utiliser votre middleware d'authentification existant
+router.use(authenticateJWT);
 
 // ✅ GET - Récupérer l'organigramme complet
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     console.log('Route GET /api/organigramme appelée');
 
@@ -52,11 +48,15 @@ router.get('/', optionalAuth, async (req, res) => {
           c.email,
           c.numero_telephone,
           c.statut_absence,
+          c.entite,
+          c.service,
+          c.cours,
           -- Données de l'escadron responsable
-          e.nom as escadron_nom
+          e.nom as escadron_nom,
+          e.numero as escadron_numero_ref
         FROM organigramme_nodes org
         LEFT JOIN cadres c ON org.cadre_id = c.id
-        LEFT JOIN escadrons e ON c.responsible_escadron_id = e.id
+        LEFT JOIN escadrons e ON c.cours = e.id
         WHERE org.is_active = TRUE
         ORDER BY org.parent_id ASC, org.position_order ASC, org.numero ASC
       `, { type: req.app.locals.db.QueryTypes.SELECT });
@@ -158,9 +158,13 @@ router.get('/', optionalAuth, async (req, res) => {
               telephone: node.numero_telephone,
               statut: node.statut_absence,
               escadronNom: node.escadron_nom,
+              escadronNumero: node.escadron_numero_ref,
               cadreId: node.cadre_id,
               fonctionAdmin: node.fonction_administrative,
-              fonctionOrg: node.fonction
+              fonctionOrg: node.fonction,
+              entite: node.entite,
+              service: node.service,
+              cours: node.cours
             };
           }
 
@@ -186,20 +190,12 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// ✅ GET - Rechercher des cadres disponibles
-router.get('/cadres/available', optionalAuth, async (req, res) => {
+// ✅ GET - Rechercher des cadres disponibles avec permissions
+router.get('/cadres/available', async (req, res) => {
   try {
-    const { search = '', service, escadronNumero, limit = 20 } = req.query;
+    const { search = '', service, escadronNumero, limit = 20, entite, grade } = req.query;
 
-    console.log('Recherche cadres:', { search, service, escadronNumero });
-
-    // Vérifier la connexion à la base de données
-    if (!req.app.locals.db) {
-      return res.status(500).json({
-        success: false,
-        message: 'Erreur de connexion à la base de données'
-      });
-    }
+    console.log('Recherche cadres organigramme:', { search, service, escadronNumero, entite, grade });
 
     // Exclure les cadres déjà dans l'organigramme
     let excludeIds = [];
@@ -209,21 +205,56 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
         { type: req.app.locals.db.QueryTypes.SELECT }
       );
       excludeIds = cadresInOrg.map(row => row.cadre_id);
-      console.log('IDs cadres exclus:', excludeIds);
     } catch (err) {
-      console.log('Table organigramme_nodes introuvable ou vide:', err.message);
+      console.log('Table organigramme_nodes introuvable:', err.message);
     }
 
-    // Construire les conditions de recherche
-    let whereConditions = {};
+    // Conditions de base avec votre logique de permissions
+    let whereConditions = {
+      statut_absence: ['Présent', 'Indisponible'] // Exclure les absents par défaut
+    };
 
     if (excludeIds.length > 0) {
-      whereConditions.id = {
-        [Op.notIn]: excludeIds
-      };
+      whereConditions.id = { [Op.notIn]: excludeIds };
     }
 
-    // Filtrage par recherche textuelle
+    // ✅ VOTRE LOGIQUE DE PERMISSIONS EXISTANTE
+    if (req.user.role === 'Admin') {
+      console.log('Admin - Accès complet aux cadres disponibles');
+      // Admin voit tout sans restriction
+
+    } else if (req.user.role === 'Standard') {
+      // Appliquer vos restrictions existantes
+      let userCadre = null;
+      if (req.user.cadre_id) {
+        userCadre = await Cadre.findByPk(req.user.cadre_id);
+      }
+
+      if (userCadre && userCadre.entite === 'Escadron') {
+        if (!userCadre.cours) {
+          return res.json({ success: true, data: [], total: 0 });
+        }
+        whereConditions.entite = 'Escadron';
+        whereConditions.cours = userCadre.cours;
+      } else if (userCadre && userCadre.entite === 'Service') {
+        if (!userCadre.service) {
+          return res.json({ success: true, data: [], total: 0 });
+        }
+        whereConditions.entite = 'Service';
+        whereConditions.service = userCadre.service;
+      } else if (req.user.service) {
+        whereConditions.service = req.user.service;
+      } else {
+        return res.json({ success: true, data: [], total: 0 });
+      }
+    } else if (req.user.role === 'Consultant') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mode consultation : modification non autorisée'
+      });
+    }
+
+    // Filtres de recherche
     if (search && search.length >= 2) {
       whereConditions[Op.or] = [
         { nom: { [Op.like]: `%${search}%` } },
@@ -233,12 +264,11 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
       ];
     }
 
-    // Filtrage par service
-    if (service) {
-      whereConditions.service = service;
-    }
+    if (entite) whereConditions.entite = entite;
+    if (service) whereConditions.service = service;
+    if (grade) whereConditions.grade = grade;
 
-    // Filtrage par escadron
+    // Filtrage par escadron (VOTRE CODE EXISTANT)
     if (escadronNumero) {
       try {
         const escadrons = await Escadron.findAll({
@@ -251,9 +281,7 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
         });
 
         if (escadrons.length > 0) {
-          whereConditions.responsible_escadron_id = {
-            [Op.in]: escadrons.map(e => e.id)
-          };
+          whereConditions.cours = { [Op.in]: escadrons.map(e => e.id) };
         } else {
           return res.json({
             success: true,
@@ -267,9 +295,7 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
       }
     }
 
-    console.log('Conditions de recherche:', whereConditions);
-
-    // Rechercher les cadres
+    // Rechercher les cadres avec VOTRE LOGIQUE EXISTANTE
     const cadres = await Cadre.findAll({
       where: whereConditions,
       include: [{
@@ -296,7 +322,8 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
       photo_url: cadre.photo_url,
       statut_absence: cadre.statut_absence,
       service: cadre.service,
-      email: cadre.email
+      email: cadre.email,
+      entite: cadre.entite
     }));
 
     console.log(`Trouvé ${cadresFormatted.length} cadres disponibles`);
@@ -305,29 +332,24 @@ router.get('/cadres/available', optionalAuth, async (req, res) => {
       success: true,
       data: cadresFormatted,
       total: cadresFormatted.length,
-      filters: {
-        service: service || null,
-        escadronNumero: escadronNumero || null,
-        search: search || null
-      }
+      filters: { service, escadronNumero, entite, grade, search }
     });
 
   } catch (error) {
-    console.error('Erreur lors de la recherche des cadres:', error);
+    console.error('Erreur recherche cadres organigramme:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la recherche des cadres',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+      message: 'Erreur serveur lors de la recherche des cadres'
     });
   }
 });
 
-// ✅ POST - Ajouter un cadre à l'organigramme
-router.post('/node/cadre', optionalAuth, async (req, res) => {
+// ✅ POST - Ajouter un cadre à l'organigramme avec permissions
+router.post('/node/cadre', async (req, res) => {
   try {
-    const { cadreId, parentId, fonction } = req.body;
+    const { cadreId, parentId, fonction, grade } = req.body;
 
-    console.log('Ajout cadre à l\'organigramme:', { cadreId, parentId, fonction });
+    console.log('Ajout cadre à l\'organigramme:', { cadreId, parentId, fonction, grade });
 
     // Validation des données
     if (!cadreId || !fonction) {
@@ -350,6 +372,35 @@ router.post('/node/cadre', optionalAuth, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Cadre non trouvé'
+      });
+    }
+
+    // ✅ NOUVEAU - Vérifier les permissions avec VOTRE LOGIQUE
+    if (req.user.role === 'Standard') {
+      let userCadre = null;
+      if (req.user.cadre_id) {
+        userCadre = await Cadre.findByPk(req.user.cadre_id);
+      }
+
+      if (userCadre && userCadre.entite === 'Service') {
+        if (cadre.entite !== 'Service' || cadre.service !== userCadre.service) {
+          return res.status(403).json({
+            success: false,
+            message: 'Vous ne pouvez ajouter à l\'organigramme que des cadres de votre service.'
+          });
+        }
+      } else if (userCadre && userCadre.entite === 'Escadron') {
+        if (cadre.entite !== 'Escadron' || cadre.cours !== userCadre.cours) {
+          return res.status(403).json({
+            success: false,
+            message: 'Vous ne pouvez ajouter à l\'organigramme que des cadres de votre escadron.'
+          });
+        }
+      }
+    } else if (req.user.role === 'Consultant') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mode consultation : modification non autorisée'
       });
     }
 
@@ -407,8 +458,8 @@ router.post('/node/cadre', optionalAuth, async (req, res) => {
     // Insérer le nœud personne avec fonction spécifique
     const result = await req.app.locals.db.query(`
       INSERT INTO organigramme_nodes
-      (name, parent_id, type, cadre_id, fonction, position_order, created_by)
-      VALUES (?, ?, 'Personne', ?, ?, ?, ?)
+      (name, parent_id, type, cadre_id, fonction, position_order, created_by, is_active, created_at)
+      VALUES (?, ?, 'Personne', ?, ?, ?, ?, TRUE, NOW())
     `, {
       replacements: [nomComplet, parentId, cadreId, fonction, positionOrder, req.user.id],
       type: req.app.locals.db.QueryTypes.INSERT
@@ -438,12 +489,125 @@ router.post('/node/cadre', optionalAuth, async (req, res) => {
   }
 });
 
-// ✅ DELETE - Retirer un cadre de l'organigramme
-router.delete('/node/:id', optionalAuth, async (req, res) => {
+// ✅ POST - Ajouter une structure organisationnelle
+router.post('/node/structure', async (req, res) => {
+  try {
+    const { name, type, parentId, direction, service, numero } = req.body;
+
+    console.log('Ajout structure:', { name, type, parentId, direction, service });
+
+    // Vérifier les permissions
+    if (req.user.role === 'Consultant') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mode consultation : modification non autorisée'
+      });
+    }
+
+    // Validation
+    if (!name || !type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le nom et le type sont requis'
+      });
+    }
+
+    // Types autorisés
+    const validTypes = ['Direction', 'Service', 'Escadron', 'Peloton'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Type invalide. Types autorisés: ${validTypes.join(', ')}`
+      });
+    }
+
+    // Vérifier le parent si spécifié
+    if (parentId) {
+      try {
+        const parentExists = await req.app.locals.db.query(
+          'SELECT id, type FROM organigramme_nodes WHERE id = ? AND is_active = TRUE',
+          { replacements: [parentId], type: req.app.locals.db.QueryTypes.SELECT }
+        );
+
+        if (parentExists.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Le nœud parent spécifié n\'existe pas'
+          });
+        }
+      } catch (parentError) {
+        console.log('Erreur vérification parent:', parentError.message);
+      }
+    }
+
+    // Calculer l'ordre de position
+    let positionOrder = 1;
+    try {
+      const positionResult = await req.app.locals.db.query(
+        'SELECT COALESCE(MAX(position_order), 0) + 1 as next_order FROM organigramme_nodes WHERE parent_id = ?',
+        { replacements: [parentId], type: req.app.locals.db.QueryTypes.SELECT }
+      );
+      positionOrder = positionResult[0].next_order;
+    } catch (posError) {
+      console.log('Erreur calcul position:', posError.message);
+    }
+
+    // Insérer la nouvelle structure
+    const result = await req.app.locals.db.query(`
+      INSERT INTO organigramme_nodes
+      (name, parent_id, type, numero, escadron_numero, description, position_order, is_active, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, NOW())
+    `, {
+      replacements: [
+        name,
+        parentId,
+        type,
+        numero || null,
+        type === 'Peloton' ? numero : null,
+        `${type}: ${name}`,
+        positionOrder,
+        req.user.id
+      ],
+      type: req.app.locals.db.QueryTypes.INSERT
+    });
+
+    console.log('Structure ajoutée avec l\'ID:', result[0]);
+
+    res.status(201).json({
+      success: true,
+      message: `${type} "${name}" ajouté(e) avec succès`,
+      data: {
+        id: result[0],
+        name: name,
+        type: type,
+        numero: numero
+      }
+    });
+
+  } catch (error) {
+    console.error('Erreur ajout structure:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de l\'ajout de la structure',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+    });
+  }
+});
+
+// ✅ DELETE - Retirer un nœud de l'organigramme avec permissions
+router.delete('/node/:id', async (req, res) => {
   try {
     const nodeId = req.params.id;
 
     console.log('Suppression du nœud:', nodeId);
+
+    // Vérifier les permissions
+    if (req.user.role === 'Consultant') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mode consultation : modification non autorisée'
+      });
+    }
 
     // Vérifier que le nœud existe
     const nodeExists = await req.app.locals.db.query(
@@ -466,6 +630,31 @@ router.delete('/node/:id', optionalAuth, async (req, res) => {
         success: false,
         message: 'Impossible de supprimer le nœud racine'
       });
+    }
+
+    // Vérifier les permissions pour Standard
+    if (req.user.role === 'Standard' && nodeData.cadre_id) {
+      const cadre = await Cadre.findByPk(nodeData.cadre_id);
+      let userCadre = null;
+      if (req.user.cadre_id) {
+        userCadre = await Cadre.findByPk(req.user.cadre_id);
+      }
+
+      if (userCadre && userCadre.entite === 'Service') {
+        if (cadre.entite !== 'Service' || cadre.service !== userCadre.service) {
+          return res.status(403).json({
+            success: false,
+            message: 'Vous ne pouvez supprimer que des cadres de votre service.'
+          });
+        }
+      } else if (userCadre && userCadre.entite === 'Escadron') {
+        if (cadre.entite !== 'Escadron' || cadre.cours !== userCadre.cours) {
+          return res.status(403).json({
+            success: false,
+            message: 'Vous ne pouvez supprimer que des cadres de votre escadron.'
+          });
+        }
+      }
     }
 
     // Vérifier s'il y a des enfants
@@ -500,6 +689,70 @@ router.delete('/node/:id', optionalAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur serveur lors de la suppression du nœud'
+    });
+  }
+});
+
+// ✅ GET - Entités et services adaptés à votre structure
+router.get('/entites-services', async (req, res) => {
+  try {
+    const entitesServices = {
+      'Service': [],
+      'Escadron': [],
+      'None': []
+    };
+
+    // Récupérer les services depuis votre DB (comme votre route /services)
+    const services = await Cadre.findAll({
+      attributes: ['service'],
+      where: { service: { [Op.ne]: null } },
+      group: ['service'],
+      order: [['service', 'ASC']]
+    });
+
+    entitesServices.Service = services.map(s => s.service).filter(Boolean);
+
+    // Récupérer les escadrons
+    const escadrons = await Escadron.findAll({
+      attributes: ['id', 'nom', 'numero'],
+      order: [['numero', 'ASC']]
+    });
+
+    entitesServices.Escadron = escadrons.map(e => ({
+      id: e.id,
+      nom: e.nom,
+      numero: e.numero,
+      display: `${e.nom} (${e.numero || 'N/A'})`
+    }));
+
+    res.json({ success: true, data: entitesServices });
+
+  } catch (error) {
+    console.error('Erreur récupération entités/services:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des entités et services'
+    });
+  }
+});
+
+// ✅ GET - Hiérarchie des grades
+router.get('/grades-hierarchy', async (req, res) => {
+  try {
+    const gradesHierarchy = {
+      'Officiers Généraux': ['Général de Division', 'Général de Brigade'],
+      'Officiers Supérieurs': ['Colonel', 'Lieutenant-Colonel', 'Commandant'],
+      'Officiers Subalternes': ['Capitaine', 'Lieutenant', 'Sous-Lieutenant'],
+      'Sous-Officiers': ['Adjudant-Chef', 'Adjudant', 'Sergent-Chef', 'Sergent'],
+      'Militaires du Rang': ['Caporal-Chef', 'Caporal', 'Gendarme']
+    };
+
+    res.json({ success: true, data: gradesHierarchy });
+  } catch (error) {
+    console.error('Erreur récupération grades:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de la hiérarchie des grades'
     });
   }
 });
