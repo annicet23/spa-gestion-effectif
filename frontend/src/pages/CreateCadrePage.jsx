@@ -583,7 +583,7 @@ function CreateCadrePage() {
                                     name="fonction"
                                     value={formData.fonction}
                                     onChange={handleInputChange}
-                                    placeholder="Ex: Chef de service, Instructeur..."
+                                    placeholder="Ex: COMESC,Chef SIAT,..."
                                 />
                             </div>
                             <div className="col-md-6 mb-3">
@@ -639,7 +639,7 @@ function CreateCadrePage() {
                                         value={formData.numero_telephone}
                                         onChange={handleInputChange}
                                         required
-                                        placeholder="Ex: +223 XX XX XX XX"
+                                        placeholder="Ex: +261 XX XX XX XX"
                                     />
                                     <div className="input-group-text bg-white border-0">
                                         <input
@@ -754,7 +754,7 @@ function CreateCadrePage() {
                                     value={formData.cfeg}
                                     onChange={handleInputChange}
                                     required
-                                    placeholder="Certificat de Fin d'Études Générales"
+                                    placeholder="Exemple: 74"
                                 />
                             </div>
                             <div className="col-md-6 mb-3">

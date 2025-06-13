@@ -1,5 +1,5 @@
 // src/components/Sidebar.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   FaHome,
@@ -15,6 +15,7 @@ import {
   FaBars,
   FaTimes,
   FaCalendarAlt,
+  FaDatabase, // Icône pour DB Admin
 } from 'react-icons/fa';
 import './Sidebar.css'; // Importer le CSS
 
@@ -22,6 +23,15 @@ function Sidebar() {
   const location = useLocation();
   const [openSubmenuId, setOpenSubmenuId] = useState(null);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [user, setUser] = useState(null); // State local pour l'utilisateur
+
+  // Récupérer l'utilisateur depuis localStorage
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
 
   const handleToggleClick = (submenuId) => {
     setOpenSubmenuId(openSubmenuId === submenuId ? null : submenuId);
@@ -39,6 +49,14 @@ function Sidebar() {
 
   const isActive = (pathname) => location.pathname === pathname;
   const isSubmenuOpen = (submenuId) => openSubmenuId === submenuId;
+
+  // ✅ FONCTION - Vérifier si l'utilisateur peut voir les paramètres
+  const canSeeParametres = () => {
+    // Afficher Paramètres si :
+    // 1. L'utilisateur peut voir "Compte" (tous les utilisateurs connectés)
+    // 2. OU si c'est un Admin (pour voir Admin DB)
+    return user && (user.role === 'Admin' || user.role === 'Standard' || user.role === 'Consultant');
+  };
 
   return (
     <>
@@ -128,28 +146,43 @@ function Sidebar() {
             )}
           </div>
 
-          {/* Paramètres */}
-          <div className="nav-item">
-            <a
-              className={`nav-link ${isSubmenuOpen('params') ? 'active' : ''}`}
-              onClick={() => handleToggleClick('params')}
-            >
-              <FaCog className="nav-icon" />
-              <span className="nav-text">Paramètres</span>
-            </a>
-            {isSubmenuOpen('params') && (
-              <div className="submenu">
-                <Link
-                  to="/parametres/comptes"
-                  className={`submenu-link ${isActive('/parametres/comptes') ? 'active' : ''}`}
-                  onClick={handleLinkClick}
-                >
-                  <FaUserCircle className="nav-icon" />
-                  <span className="nav-text">Compte</span>
-                </Link>
-              </div>
-            )}
-          </div>
+          {/* ✅ PARAMÈTRES - Avec protection d'affichage */}
+          {canSeeParametres() && (
+            <div className="nav-item">
+              <a
+                className={`nav-link ${isSubmenuOpen('params') ? 'active' : ''}`}
+                onClick={() => handleToggleClick('params')}
+              >
+                <FaCog className="nav-icon" />
+                <span className="nav-text">Paramètres</span>
+              </a>
+              {isSubmenuOpen('params') && (
+                <div className="submenu">
+                  {/* ✅ COMPTE - Visible pour tous les utilisateurs connectés */}
+                  <Link
+                    to="/parametres/comptes"
+                    className={`submenu-link ${isActive('/parametres/comptes') ? 'active' : ''}`}
+                    onClick={handleLinkClick}
+                  >
+                    <FaUserCircle className="nav-icon" />
+                    <span className="nav-text">Compte</span>
+                  </Link>
+
+                  {/* ✅ ADMIN DB - Visible SEULEMENT pour les admins */}
+                  {user?.role === 'Admin' && (
+                    <Link
+                      to="/db-admin"
+                      className={`submenu-link ${isActive('/db-admin') ? 'active' : ''}`}
+                      onClick={handleLinkClick}
+                    >
+                      <FaDatabase className="nav-icon" />
+                      <span className="nav-text">Admin Base de Données</span>
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Historique */}
           <div className="nav-item">

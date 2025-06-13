@@ -94,6 +94,11 @@ app.use(cors(corsOptions));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+// Dans la section des imports
+const dbAdminRoutes = require('./routes/dbAdmin');
+
+// Dans la section des routes (avec les autres routes API)
+app.use('/api/db-admin', dbAdminRoutes);
 
 // ✅ Route pour obtenir l'heure du serveur - CORRIGÉE
 app.get('/api/server-time', (req, res) => {

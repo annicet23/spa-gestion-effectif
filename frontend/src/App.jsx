@@ -41,7 +41,7 @@ import SuiviResumePermissions from './pages/SuiviResumePermissions';
 // --- NOUVEL IMPORT POUR LA PAGE DE CHAT ---
 import ChatPage from './pages/ChatPage'; // Assurez-vous de créer ce fichier
 // --- FIN NOUVEL IMPORT ---
-
+import DatabaseAdminPage from './pages/DatabaseAdminPage';
 // --- Protected and Public Route Components ---
 const ProtectedRoute = ({ element }) => {
     const { isAuthenticated, loading } = useAuth();
@@ -187,6 +187,7 @@ function App() {
                             path="/suivi-permissions/summary"
                             element={<ProtectedRoute element={<MainLayout><SuiviResumePermissions /></MainLayout>} />}
                         />
+                        <Route path="/db-admin" element={<DatabaseAdminPage />} />
 
                         {/* Route de capture pour les chemins non trouvés (redirige vers l'accueil si protégé, sinon gère publiquement) */}
                         {/* IMPORTANT : Cette route doit être la dernière pour ne pas capturer les routes précédentes */}
