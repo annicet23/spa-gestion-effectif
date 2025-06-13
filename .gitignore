@@ -1,9 +1,10 @@
 # Dépendances Node.js
-/node_modules/
-**/node_modules/ # <--
+node_modules/
 
 # Fichiers de log
 *.log
+npm-debug.log*
+yarn-error.log*
 
 # Fichiers de l'OS (macOS)
 .DS_Store
@@ -11,9 +12,7 @@
 # Fichiers de l'OS (Windows)
 Thumbs.db
 
-# Variables d'environnement
-.env
 
 # Fichiers de cache ou temporaires
-npm-debug.log*
-yarn-error.log*
+.cache/
+tmp/
